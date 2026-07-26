@@ -30,25 +30,30 @@ initDb().then(db => {
   initFirebase();
 }).catch(console.error);
 
-app.get('/api/health', (_req, res) => {
+// Health check endpoints
+const healthHandler = (_req, res) => {
   res.json({
     status: 'ok',
     service: 'University Course Portal API',
     firebase: getFirebaseStatus()
   });
-});
+};
 
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
+
+// API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api', studentRoutes);
 app.use('/api/instructor', instructorRoutes);
 app.use('/api/workflow', workflowRoutes);
+app.use('/api', studentRoutes);
 
-// Serve static frontend UI if dist directory exists
+// Static frontend serving
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ error: 'API route not found' });
+      return res.status(404).json({ error: `API route ${req.path} not found` });
     }
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
@@ -68,11 +73,8 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-const isDirectRun = process.argv[1] && process.argv[1].endsWith('index.js');
-if (isDirectRun || process.env.PORT || process.env.NODE_ENV === 'production') {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 export default app;
