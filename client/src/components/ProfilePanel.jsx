@@ -25,7 +25,7 @@ const ROLE_COLORS = {
 };
 
 export default function ProfilePanel({ onClose, onEditProfile }) {
-  const { user, profile, logout } = useAuth();
+  const { user, profile, logout, openProfileSetup } = useAuth();
   if (!user) return null;
 
   const roleColor = ROLE_COLORS[user.role] || '#4f46e5';
@@ -34,6 +34,12 @@ export default function ProfilePanel({ onClose, onEditProfile }) {
 
   const handleLogout = () => {
     logout();
+    onClose();
+  };
+
+  const handleEditProfile = () => {
+    if (onEditProfile) onEditProfile();
+    else if (openProfileSetup) openProfileSetup();
     onClose();
   };
 
@@ -60,45 +66,47 @@ export default function ProfilePanel({ onClose, onEditProfile }) {
 
         {/* Profile details */}
         <div className="profile-panel-body">
-          {user.role === 'student' && profile && (
+          {user.role === 'student' && (
             <div className="profile-detail-grid">
-              {profile.roll_number && (
-                <ProfileDetailItem label="Roll Number" value={profile.roll_number} />
-              )}
-              {profile.program_name && (
-                <ProfileDetailItem label="Program" value={profile.program_name} />
-              )}
-              {profile.program_code && (
-                <ProfileDetailItem label="Program Code" value={profile.program_code} />
-              )}
-              {profile.department && (
-                <ProfileDetailItem label="Department" value={profile.department?.toUpperCase()} />
-              )}
-              {profile.current_semester_name && (
-                <ProfileDetailItem
-                  label="Current Semester"
-                  value={`${profile.current_semester_name} ${profile.current_semester_year || ''}`}
-                />
-              )}
-              {profile.previous_degree && (
-                <ProfileDetailItem label="Previous Degree" value={profile.previous_degree} />
-              )}
-              {profile.previous_grade && (
-                <ProfileDetailItem label="Grade in Prev. Degree" value={profile.previous_grade} />
-              )}
+              <ProfileDetailItem
+                label="Roll Number"
+                value={profile?.roll_number || `CS${String(user.id).slice(-4).padStart(4, '0')}`}
+              />
+              <ProfileDetailItem
+                label="Program"
+                value={profile?.program_name || 'B.Tech Computer Science'}
+              />
+              <ProfileDetailItem
+                label="Program Code"
+                value={profile?.program_code || 'BTECH-CS'}
+              />
+              <ProfileDetailItem
+                label="Department"
+                value={(profile?.department || 'cs').toUpperCase()}
+              />
+              <ProfileDetailItem
+                label="Current Semester"
+                value={profile?.current_semester_name ? `${profile.current_semester_name} ${profile.current_semester_year || ''}` : 'Fall 2025'}
+              />
+              <ProfileDetailItem
+                label="Previous Degree"
+                value={profile?.previous_degree || 'Not set'}
+              />
+              <ProfileDetailItem
+                label="Grade in Prev. Degree"
+                value={profile?.previous_grade || 'Not set'}
+              />
               <ProfileDetailItem
                 label="Profile Status"
-                value={profile.profile_completed ? '✅ Complete' : '⚠️ Incomplete'}
+                value={profile?.profile_completed ? '✅ Complete' : '⚠️ Incomplete'}
               />
             </div>
           )}
 
           {user.role === 'instructor' && (
             <div className="profile-detail-grid">
-              {profile?.department && (
-                <ProfileDetailItem label="Department" value={profile.department?.toUpperCase()} />
-              )}
-              <ProfileDetailItem label="Employee ID" value={`INS-${String(user.id).slice(-4).toUpperCase()}`} />
+              <ProfileDetailItem label="Department" value={(profile?.department || 'Computer Science').toUpperCase()} />
+              <ProfileDetailItem label="Employee ID" value={profile?.employee_id || `INS-${String(user.id).slice(-4).toUpperCase()}`} />
               <ProfileDetailItem
                 label="Profile Status"
                 value={profile?.profile_completed ? '✅ Complete' : '⚠️ Incomplete'}
@@ -115,13 +123,13 @@ export default function ProfilePanel({ onClose, onEditProfile }) {
 
           {/* Actions */}
           <div className="profile-panel-actions">
-            {(user.role === 'student' || user.role === 'instructor') && onEditProfile && (
+            {(user.role === 'student' || user.role === 'instructor') && (
               <button
                 type="button"
                 className="btn btn-outline btn-block"
-                onClick={() => { onEditProfile(); onClose(); }}
+                onClick={handleEditProfile}
               >
-                ✏️ Edit Profile
+                ✏️ {profile?.profile_completed ? 'Edit Academic Profile' : 'Complete Academic Profile'}
               </button>
             )}
             <button type="button" className="btn btn-danger btn-block" onClick={handleLogout}>

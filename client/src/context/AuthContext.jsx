@@ -71,13 +71,14 @@ export function AuthProvider({ children }) {
   };
 
   const needsProfileSetup = () => showProfileSetup;
+  const openProfileSetup = () => setShowProfileSetup(true);
 
   return (
     <AuthContext.Provider value={{
       user, profile, loading,
       login, logout, register,
       refreshProfile, needsProfileSetup,
-      completeProfileSetup, showProfileSetup
+      openProfileSetup, completeProfileSetup, showProfileSetup
     }}>
       {children}
     </AuthContext.Provider>

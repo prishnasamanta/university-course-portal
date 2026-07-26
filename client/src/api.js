@@ -34,6 +34,7 @@ export const api = {
   getInstructorAvailableCourses: () => request('/instructor/available-courses'),
 
   // General data
+  getPrograms: () => request('/programs'),
   getCourses: () => request('/courses'),
   getInstructors: () => request('/instructors'),
   getSemesters: () => request('/semesters'),

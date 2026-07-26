@@ -92,6 +92,24 @@ export default function CourseRegistration() {
   const isEnrolledInCourse = (courseId) =>
     enrollments.some(e => offerings.find(o => o.id === e.section_id)?.course_id === courseId);
 
+  const studentDegreeLevel = (() => {
+    const code = (profile?.program_code || '').toLowerCase();
+    const name = (profile?.program_name || '').toLowerCase();
+    if (code.includes('btech') || name.includes('b.tech')) return 'btech';
+    if (code.includes('mtech') || name.includes('m.tech')) return 'mtech';
+    if (code.includes('msc') || name.includes('m.sc')) return 'msc';
+    return 'btech'; // default fallback
+  })();
+
+  const [degreeFilter, setDegreeFilter] = useState('mine'); // 'mine' | 'all'
+
+  const displayedCourses = uniqueCourses.filter(c => {
+    if (degreeFilter === 'mine') {
+      return c.degree_level === studentDegreeLevel;
+    }
+    return true;
+  });
+
   return (
     <div>
       <div className="page-header">
@@ -101,7 +119,7 @@ export default function CourseRegistration() {
 
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
 
-      <div className="card">
+      <div className="card" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'1rem' }}>
         <label className="inline-label">
           Semester
           <select value={selectedSemester} onChange={e => setSelectedSemester(e.target.value)}>
@@ -113,14 +131,34 @@ export default function CourseRegistration() {
             ))}
           </select>
         </label>
+
+        {/* Degree Filter Tabs */}
+        <div className="admin-tabs" style={{ margin:0, borderBottom:'none' }}>
+          <button
+            type="button"
+            className={`admin-tab ${degreeFilter === 'mine' ? 'active' : ''}`}
+            onClick={() => setDegreeFilter('mine')}
+          >
+            🎓 {DEGREE_LABELS[studentDegreeLevel] || 'Your Degree'} Courses
+          </button>
+          <button
+            type="button"
+            className={`admin-tab ${degreeFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setDegreeFilter('all')}
+          >
+            🌐 All Programs
+          </button>
+        </div>
       </div>
 
       <div className="card-grid">
-        {uniqueCourses.map(c => (
+        {displayedCourses.map(c => (
           <div key={c.course_id} className="card course-card" onClick={() => openCourse(c.course_id)}>
             <div className="course-card-top">
               <span className="badge dept">{c.department?.toUpperCase()}</span>
-              <span className="badge">{DEGREE_LABELS[c.degree_level] || c.degree_level}</span>
+              <span className="badge" style={{ background: c.degree_level === studentDegreeLevel ? '#eef2ff' : '#f3f4f6', color: c.degree_level === studentDegreeLevel ? 'var(--primary)' : 'var(--muted)' }}>
+                {DEGREE_LABELS[c.degree_level] || c.degree_level}
+              </span>
             </div>
             <h3>{c.course_code}</h3>
             <p>{c.course_title}</p>
@@ -129,7 +167,14 @@ export default function CourseRegistration() {
             <button type="button" className="btn btn-outline btn-sm">View Details →</button>
           </div>
         ))}
-        {uniqueCourses.length === 0 && <p className="muted">No courses with assigned instructors for this semester.</p>}
+        {displayedCourses.length === 0 && (
+          <div className="card" style={{ gridColumn:'1/-1', textAlign:'center', padding:'2rem', color:'var(--muted)' }}>
+            <p>No {DEGREE_LABELS[studentDegreeLevel]} courses found for this semester.</p>
+            <button type="button" className="btn btn-outline btn-sm" style={{ marginTop:'0.5rem' }} onClick={() => setDegreeFilter('all')}>
+              Show All University Courses
+            </button>
+          </div>
+        )}
       </div>
 
       {selectedCourse && courseDetail && (

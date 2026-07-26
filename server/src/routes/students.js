@@ -17,39 +17,26 @@ const router = Router();
 
 
 router.post('/profile/student', authRequired, requireRoles('student'), (req, res) => {
-
-  const student = getStudentByUserId(req.user.id);
-
+  let student = getStudentByUserId(req.user.id);
   if (!student) return res.status(404).json({ error: 'Student profile not found' });
 
-
-
-  const { name, email, previous_degree, previous_grade, current_semester_id } = req.body;
+  const { name, email, program_id, previous_degree, previous_grade, current_semester_id } = req.body;
 
   if (!name || !previous_degree || !previous_grade || !current_semester_id) {
-
     return res.status(400).json({ error: 'All profile fields are required' });
-
   }
-
-
 
   db.prepare('UPDATE users SET name = ?, email = ? WHERE id = ?').run(name, email || req.user.email, req.user.id);
 
+  const progId = program_id ? Number(program_id) : student.program_id || 1;
+
   db.prepare(`
-
-    UPDATE students SET previous_degree = ?, previous_grade = ?, current_semester_id = ?,
-
+    UPDATE students SET program_id = ?, previous_degree = ?, previous_grade = ?, current_semester_id = ?,
       profile_completed = 1
-
     WHERE id = ?
-
-  `).run(previous_degree, previous_grade, current_semester_id, student.id);
-
-
+  `).run(progId, previous_degree, previous_grade, Number(current_semester_id), student.id);
 
   res.json({ ok: true });
-
 });
 
 
