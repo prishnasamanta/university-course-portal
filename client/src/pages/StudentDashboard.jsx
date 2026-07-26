@@ -17,6 +17,7 @@ export default function StudentDashboard() {
   const [tab, setTab] = useState('courses');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
+  const [showNoExamsModal, setShowNoExamsModal] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -53,12 +54,6 @@ export default function StudentDashboard() {
     }
   };
 
-  if (loading) return <div className="loading-screen">Loading your dashboard…</div>;
-
-  const totalCredits = enrollments.reduce((s, e) => s + (e.credits || 0), 0);
-
-  const [showNoExamsModal, setShowNoExamsModal] = useState(false);
-
   const handleResultTabClick = () => {
     const hasRegs = examRegs.some(e => e.exam_reg_id);
     if (!hasRegs) {
@@ -66,6 +61,10 @@ export default function StudentDashboard() {
     }
     setTab('results');
   };
+
+  if (loading) return <div className="loading-screen">Loading your dashboard…</div>;
+
+  const totalCredits = enrollments.reduce((s, e) => s + (e.credits || 0), 0);
 
   return (
     <div>
