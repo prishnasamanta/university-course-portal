@@ -1,75 +1,41 @@
-# 🚀 Render Cloud Deployment Guide (Backend API + Frontend)
+# 🚀 Unified Single-URL Full-Stack Render Deployment
 
-This guide provides step-by-step instructions for deploying your **University Course Portal Backend API** to **Render** ([render.com](https://render.com)) connected to live **Firebase Firestore**.
-
----
-
-## 🛠️ Step 1: Push Project to GitHub
-
-Make sure your project repository is committed and pushed to GitHub:
-```bash
-git add .
-git commit -m "Configure Render deployment and Firebase Firestore"
-git push origin main
-```
+Your entire application (React Web UI + Express API Backend + Firebase Database) is now configured to run under **ONE single URL** on Render.
 
 ---
 
-## ⚡ Step 2: Deploy Backend API on Render (2 Simple Options)
+## 🎯 Single URL Architecture
 
-### Option A: Using Render Blueprints (Automatic 1-Click Setup)
-1. Log in to [Render Dashboard](https://dashboard.render.com/).
-2. Click **New +** > **Blueprint**.
-3. Connect your GitHub repository (`university-course-portal`).
-4. Render will automatically detect the [`render.yaml`](file:///c:/Users/Prishna%20Samanta/Projects/university-course-portal/render.yaml) blueprint!
-5. In the Environment Variables prompt:
-   - `FIREBASE_CLIENT_EMAIL`: Your client email from `serviceAccountKey.json`.
-   - `FIREBASE_PRIVATE_KEY`: Your private key string from `serviceAccountKey.json`.
-6. Click **Apply**. Render will build and deploy your API!
+| Component | URL Path | Description |
+|---|---|---|
+| 🖥️ **Full Web Application (UI)** | `https://university-portal-api.onrender.com/` | Interactive React frontend website |
+| ⚙️ **Backend API** | `https://university-portal-api.onrender.com/api/...` | Express API endpoints |
+| 🗄️ **Database** | Firebase Firestore | Cloud data persistence |
 
 ---
 
-### Option B: Manual Web Service Setup on Render
-1. Go to [Render Dashboard](https://dashboard.render.com/) > **New +** > **Web Service**.
-2. Connect your GitHub repository.
-3. Fill in the following settings:
+## 📋 Render Settings (If setting up manually)
 
-| Setting | Value |
+If you created your service manually on Render, update your Web Service settings in **Render Dashboard**:
+
+| Setting Field | Exact Value |
 |---|---|
-| **Name** | `university-portal-api` |
-| **Root Directory** | `server` |
-| **Environment** | `Node` |
-| **Build Command** | `npm install` |
+| **Root Directory** | *(Leave Empty / Blank)* |
+| **Build Command** | `npm run build` |
 | **Start Command** | `npm start` |
-| **Health Check Path** | `/api/health` |
 
-4. Under **Environment Variables**, add:
-
-| Key | Value |
-|---|---|
-| `NODE_ENV` | `production` |
-| `DB_TYPE` | `firebase` |
-| `FIREBASE_PROJECT_ID` | `university-reg-portal` |
-| `FIREBASE_CLIENT_EMAIL` | *(From your serviceAccountKey.json)* |
-| `FIREBASE_PRIVATE_KEY` | *(From your serviceAccountKey.json)* |
-
-5. Click **Create Web Service**. 
-   Render will deploy your server and provide a live URL like:  
-   👉 `https://university-portal-api.onrender.com`
+Render will automatically run `npm run build` to compile the React UI, install dependencies, and start the server.
 
 ---
 
-## 🌐 Step 3: Connect Frontend to Render API
+## 🔑 Login Credentials
 
-1. In `client/.env.production` (or `client/.env`), set:
-   ```env
-   VITE_API_URL=https://university-portal-api.onrender.com/api
-   ```
-2. Build and deploy frontend to Firebase Hosting:
-   ```bash
-   cd client
-   npm run build
-   npx firebase-tools deploy --only hosting
-   ```
+Open your single Render URL (`https://university-portal-api.onrender.com`):
 
-🎉 Both your **Backend API on Render** and **Frontend Web App on Firebase Hosting** are live in the cloud!
+| Role | Email | Password |
+|---|---|---|
+| **Student** | `alice@student.uni.edu` | `student123` |
+| **Instructor** | `dr.smith@uni.edu` | `inst123` |
+| **Academic Staff** | `staff@uni.edu` | `staff123` |
+| **Dept Head (HOD)** | `head@uni.edu` | `head123` |
+| **Admin** | `admin@uni.edu` | `admin123` |
