@@ -32,6 +32,16 @@ async function findUserByEmail(email) {
 }
 
 async function findUserById(id) {
+  // For numeric IDs (seeded SQLite accounts), check SQLite first
+  if (typeof id === 'number' || /^\d+$/.test(String(id))) {
+    try {
+      const db = await getDb();
+      const row = db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(id);
+      if (row) return row;
+    } catch (err) { /* fallthrough */ }
+  }
+
+  // For string IDs (Firestore-registered accounts), check Firestore
   try {
     const firestore = getFirestoreDb();
     if (firestore) {
@@ -42,6 +52,7 @@ async function findUserById(id) {
     }
   } catch (err) { /* Ignore */ }
 
+  // Final fallback: SQLite for any remaining case
   try {
     const db = await getDb();
     return db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(id);
