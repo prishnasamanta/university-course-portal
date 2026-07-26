@@ -432,37 +432,47 @@
 }
 .link-btn:hover { text-decoration: underline; }
 
-/* ===== Enriched Demo Cards ===== */
-.demo-accounts { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
-.demo-accounts h3 { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.demo-grid { display: grid; gap: 0.5rem; }
-.demo-btn {
+/* ===== Single-Line Demo Profile Circles ===== */
+.demo-accounts { margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem; text-align: center; }
+.demo-accounts h3 { font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.demo-circle-row { display: flex; gap: 0.85rem; justify-content: center; align-items: center; flex-wrap: wrap; }
+.demo-circle-btn {
   display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
-  text-align: left;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #fafafa;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, transform 0.1s;
-  width: 100%;
+  padding: 0.2rem;
+  transition: transform 0.15s ease;
 }
-.demo-btn:hover { border-color: var(--primary); background: #eef2ff; transform: translateX(2px); }
-.demo-avatar { font-size: 1.6rem; flex-shrink: 0; margin-top: 0.1rem; }
-.demo-info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-.demo-info strong { font-size: 0.9rem; display: block; }
-.demo-info small { font-size: 0.75rem; color: var(--muted); display: block; line-height: 1.4; }
-.demo-role-badge {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
+.demo-circle-btn:hover { transform: translateY(-2px); }
+.demo-circle-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #fafafa;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  transition: all 0.2s ease;
+}
+.demo-circle-btn:hover .demo-circle-avatar {
+  border-color: var(--primary);
   background: #eef2ff;
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2);
+}
+.demo-circle-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+.demo-circle-btn:hover .demo-circle-label {
   color: var(--primary);
-  width: fit-content;
 }
 
 /* ===== User name button in topbar ===== */

@@ -187,18 +187,20 @@ export default function Login() {
           </form>
         )}
 
-        {/* Demo accounts */}
+        {/* Demo accounts — single line small profile circles */}
         <div className="demo-accounts">
-          <h3>Demo Accounts — Click to fill</h3>
-          <div className="demo-grid">
+          <h3>Quick Fill Demo Accounts</h3>
+          <div className="demo-circle-row">
             {DEMO_ACCOUNTS.map(acc => (
-              <button key={acc.email} type="button" className="demo-btn" onClick={() => quickLogin(acc)}>
-                <span className="demo-avatar">{acc.avatar}</span>
-                <div className="demo-info">
-                  <strong>{acc.name}</strong>
-                  <span className="demo-role-badge">{acc.label}</span>
-                  <small>{acc.bio}</small>
-                </div>
+              <button
+                key={acc.email}
+                type="button"
+                className="demo-circle-btn"
+                onClick={() => quickLogin(acc)}
+                title={`${acc.name} — ${acc.bio}`}
+              >
+                <span className="demo-circle-avatar">{acc.avatar}</span>
+                <span className="demo-circle-label">{acc.label}</span>
               </button>
             ))}
           </div>
