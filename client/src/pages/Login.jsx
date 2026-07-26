@@ -14,7 +14,7 @@ const DEMO_ACCOUNTS = [
   },
   {
     email: 'dr.smith@uni.edu',
-    password: 'inst123',
+    password: 'prof1234',
     role: 'instructor',
     label: 'Instructor',
     name: 'Prof. John Smith',
