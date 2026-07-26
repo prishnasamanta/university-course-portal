@@ -10,6 +10,7 @@ const schemaPath = path.join(__dirname, 'schema.sql');
 
 let dbInstance = null;
 let wrapperInstance = null;
+let initPromise = null;
 
 function saveDb() {
   if (!dbInstance) return;
@@ -45,8 +46,9 @@ function seedSqlite(db) {
       INSERT INTO instructors (user_id, department, employee_id, profile_completed) VALUES (2, 'Computer Science', 'EMP001', 1);
     `);
     saveDb();
+    console.log('[SQLite] Automatically seeded default users and initial database schema.');
   } catch (err) {
-    // Ignore auto-seed errors if data exists
+    // Ignore auto-seed errors
   }
 }
 
@@ -102,40 +104,45 @@ function createWrapper(db) {
 export async function initDb() {
   if (wrapperInstance) return wrapperInstance;
 
-  try {
-    const SQL = await initSqlJs();
-    if (fs.existsSync(dbPath)) {
-      dbInstance = new SQL.Database(fs.readFileSync(dbPath));
-    } else {
-      dbInstance = new SQL.Database();
-      if (fs.existsSync(schemaPath)) {
-        const schema = fs.readFileSync(schemaPath, 'utf8');
-        dbInstance.exec(schema);
-      }
-      saveDb();
-    }
+  if (!initPromise) {
+    initPromise = (async () => {
+      try {
+        const SQL = await initSqlJs();
+        if (fs.existsSync(dbPath)) {
+          dbInstance = new SQL.Database(fs.readFileSync(dbPath));
+        } else {
+          dbInstance = new SQL.Database();
+          if (fs.existsSync(schemaPath)) {
+            const schema = fs.readFileSync(schemaPath, 'utf8');
+            dbInstance.exec(schema);
+          }
+          saveDb();
+        }
 
-    try {
-      const res = dbInstance.exec('SELECT COUNT(*) FROM users');
-      const count = res[0]?.values[0]?.[0] ?? 0;
-      if (count === 0) {
-        seedSqlite(dbInstance);
-      }
-    } catch (err) {
-      seedSqlite(dbInstance);
-    }
+        try {
+          const res = dbInstance.exec('SELECT COUNT(*) FROM users');
+          const count = res[0]?.values[0]?.[0] ?? 0;
+          if (count === 0) {
+            seedSqlite(dbInstance);
+          }
+        } catch (err) {
+          seedSqlite(dbInstance);
+        }
 
-    wrapperInstance = createWrapper(dbInstance);
-    return wrapperInstance;
-  } catch (err) {
-    console.error('[Database Init Warning]:', err.message);
-    // Fallback dummy db object to prevent crashes
-    wrapperInstance = {
-      prepare: () => ({ run: () => ({}), get: () => undefined, all: () => [] }),
-      exec: () => {}
-    };
-    return wrapperInstance;
+        wrapperInstance = createWrapper(dbInstance);
+        return wrapperInstance;
+      } catch (err) {
+        console.error('[Database Init Error]:', err.message);
+        wrapperInstance = {
+          prepare: () => ({ run: () => ({}), get: () => undefined, all: () => [] }),
+          exec: () => {}
+        };
+        return wrapperInstance;
+      }
+    })();
   }
+
+  return initPromise;
 }
 
 export async function getDb() {
@@ -146,18 +153,19 @@ export async function getDb() {
 export default {
   get prepare() {
     if (!wrapperInstance) {
-      // Synchronous attempt or empty safe fallback
       initDb().catch(console.error);
-      if (!wrapperInstance) {
-        return () => ({ run: () => ({}), get: () => undefined, all: () => [] });
-      }
+      return (sql) => ({
+        run: () => ({}),
+        get: (...params) => wrapperInstance ? wrapperInstance.prepare(sql).get(...params) : undefined,
+        all: (...params) => wrapperInstance ? wrapperInstance.prepare(sql).all(...params) : []
+      });
     }
     return wrapperInstance.prepare.bind(wrapperInstance);
   },
   get exec() {
     if (!wrapperInstance) {
       initDb().catch(console.error);
-      if (!wrapperInstance) return () => {};
+      return (sql) => wrapperInstance ? wrapperInstance.exec(sql) : undefined;
     }
     return wrapperInstance.exec.bind(wrapperInstance);
   },

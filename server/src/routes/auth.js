@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import db from '../db/index.js';
+import { getDb } from '../db/index.js';
 import { getFirestoreDb } from '../db/firebase.js';
 import { signToken, authRequired } from '../middleware/auth.js';
 
 const router = Router();
 
 async function findUserByEmail(email) {
-  // Try Firestore if available
+  // 1. Try Firestore if available
   try {
     const firestore = getFirestoreDb();
     if (firestore) {
@@ -18,13 +18,15 @@ async function findUserByEmail(email) {
       }
     }
   } catch (err) {
-    // Ignore and fallback to SQLite
+    console.warn('[Firestore Auth Warning]:', err.message);
   }
 
-  // Fallback to SQLite
+  // 2. Fallback to SQLite (ensuring database initialization has completed!)
   try {
+    const db = await getDb();
     return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   } catch (err) {
+    console.error('[SQLite Auth Error]:', err.message);
     return null;
   }
 }
@@ -43,6 +45,7 @@ async function findUserById(id) {
   }
 
   try {
+    const db = await getDb();
     return db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(id);
   } catch (err) {
     return null;
@@ -77,7 +80,9 @@ router.get('/me', authRequired, async (req, res) => {
     const user = await findUserById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    const db = await getDb();
     let profile = null;
+
     if (user.role === 'student') {
       try {
         profile = db.prepare(`
@@ -89,7 +94,6 @@ router.get('/me', authRequired, async (req, res) => {
           WHERE s.user_id = ?
         `).get(user.id);
       } catch (err) {
-        // Fallback profile if SQLite not initialized
         profile = { id: user.id, user_id: user.id, profile_completed: 1 };
       }
     } else if (user.role === 'instructor') {
