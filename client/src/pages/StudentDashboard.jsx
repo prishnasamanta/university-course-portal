@@ -57,8 +57,33 @@ export default function StudentDashboard() {
 
   const totalCredits = enrollments.reduce((s, e) => s + (e.credits || 0), 0);
 
+  const [showNoExamsModal, setShowNoExamsModal] = useState(false);
+
+  const handleResultTabClick = () => {
+    const hasRegs = examRegs.some(e => e.exam_reg_id);
+    if (!hasRegs) {
+      setShowNoExamsModal(true);
+    }
+    setTab('results');
+  };
+
   return (
     <div>
+      {showNoExamsModal && (
+        <div className="modal-overlay" style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+          <div className="modal-content card" style={{ maxWidth:400, width:'90%', textAlign:'center', padding:'2rem' }}>
+            <div style={{ fontSize:'3rem', marginBottom:'0.5rem' }}>⚠️</div>
+            <h3 style={{ margin:'0 0 0.5rem' }}>No Exams Registered</h3>
+            <p style={{ color:'var(--muted)', fontSize:'0.9rem', marginBottom:'1.5rem' }}>
+              You have not registered for any course exams yet. Please register under the "Exam Registration" tab first.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={() => setShowNoExamsModal(false)}>
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="page-header">
         <h1>Student Dashboard</h1>
         <p>Your courses, exam registrations and result status</p>
@@ -94,7 +119,7 @@ export default function StudentDashboard() {
         <button type="button" className={`login-tab ${tab==='exams' ? 'active' : ''}`} onClick={() => setTab('exams')}>
           📝 Exam Registration {openExams.length > 0 && <span style={{ background:'#ef4444', color:'white', borderRadius:'999px', padding:'0 5px', fontSize:'0.7rem', marginLeft:'4px' }}>{openExams.length}</span>}
         </button>
-        <button type="button" className={`login-tab ${tab==='results' ? 'active' : ''}`} onClick={() => setTab('results')}>
+        <button type="button" className={`login-tab ${tab==='results' ? 'active' : ''}`} onClick={handleResultTabClick}>
           📊 Result Status
         </button>
       </div>

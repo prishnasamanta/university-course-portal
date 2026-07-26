@@ -23,7 +23,7 @@ export function saveCourseResult(enrollmentId, marks, userId) {
   }
 
   const enrollment = db.prepare(`
-    SELECT e.*, sem.exams_completed
+    SELECT e.*, sem.exams_completed, s.exam_requested, s.exam_reg_open
     FROM enrollments e
     JOIN sections s ON s.id = e.section_id
     JOIN semesters sem ON sem.id = s.semester_id
@@ -31,8 +31,8 @@ export function saveCourseResult(enrollmentId, marks, userId) {
   `).get(enrollmentId);
 
   if (!enrollment) return { ok: false, reason: 'Enrollment not found' };
-  if (!enrollment.exams_completed) {
-    return { ok: false, reason: 'Exams not marked complete yet by Academic Staff' };
+  if (!enrollment.exams_completed && !(enrollment.exam_requested && !enrollment.exam_reg_open)) {
+    return { ok: false, reason: 'Exam registration must be completed/closed before entering marks' };
   }
 
   ensureWorkflow(enrollmentId);

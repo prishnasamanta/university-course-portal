@@ -77,11 +77,13 @@ export const api = {
   saveExamResult: (enrollment_id, marks) =>
     request('/instructor/results', { method: 'POST', body: JSON.stringify({ enrollment_id, marks }) }),
 
-  // Instructor exam requests
+  // Instructor exam requests & timetable
   requestExam: (sectionId) =>
     request(`/instructor/sections/${sectionId}/request-exam`, { method: 'POST', body: '{}' }),
   cancelExamRequest: (sectionId) =>
     request(`/instructor/sections/${sectionId}/cancel-exam-request`, { method: 'POST', body: '{}' }),
+  updateSectionTimetable: (sectionId, data) =>
+    request(`/instructor/sections/${sectionId}/timetable`, { method: 'POST', body: JSON.stringify(data) }),
 
   // Staff grade workflow
   getWorkflowSections: () => request('/workflow/sections/pending'),

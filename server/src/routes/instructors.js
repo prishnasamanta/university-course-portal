@@ -105,31 +105,27 @@ router.get('/my-preferences', authRequired, requireRoles('instructor'), (req, re
 
 
 router.get('/my-sections', authRequired, requireRoles('instructor'), (req, res) => {
-
   const instructor = getInstructorByUserId(req.user.id);
 
   const sections = db.prepare(`
-
-    SELECT s.*, c.code AS course_code, c.title AS course_title, c.credits,
-
+    SELECT s.*, c.code AS course_code, c.title AS course_title, c.credits, c.department, c.degree_level,
            sem.name AS semester_name, sem.year, sem.exams_completed,
-
-           (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.id AND e.status = 'registered') AS enrolled_count
-
+           (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.id AND e.status IN ('registered','completed')) AS enrolled_count,
+           (SELECT COUNT(*) FROM enrollments e JOIN course_results cr ON cr.enrollment_id = e.id WHERE e.section_id = s.id AND e.status IN ('registered','completed')) AS marks_count
     FROM sections s
-
     JOIN courses c ON c.id = s.course_id
-
     JOIN semesters sem ON sem.id = s.semester_id
-
     WHERE s.instructor_id = ?
-
     ORDER BY sem.year DESC, c.code
-
   `).all(instructor.id);
 
-  res.json(sections);
-
+  res.json(sections.map(sec => {
+    const slots = db.prepare('SELECT * FROM section_schedule_slots WHERE section_id = ? ORDER BY day_of_week').all(sec.id);
+    return {
+      ...sec,
+      schedule_slots: slots.map(sl => ({ ...sl, day_name: DAY_NAMES[sl.day_of_week] }))
+    };
+  }));
 });
 
 
@@ -485,6 +481,24 @@ router.post('/sections/:sectionId/cancel-exam-request', authRequired, requireRol
   if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
   
   dbInst.prepare('UPDATE sections SET exam_requested = 0 WHERE id = ?').run(section.id);
+  res.json({ ok: true });
+});
+
+// POST /api/instructor/sections/:sectionId/timetable
+router.post('/sections/:sectionId/timetable', authRequired, requireRoles('instructor'), async (req, res) => {
+  const instructor = getInstructorByUserId(req.user.id);
+  const dbInst = await getDb();
+  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, instructor.id);
+  if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
+
+  const { day_of_week, start_time, end_time, room } = req.body;
+  if (room) {
+    dbInst.prepare('UPDATE sections SET room = ? WHERE id = ?').run(room, section.id);
+  }
+  if (day_of_week != null && start_time && end_time) {
+    dbInst.prepare('DELETE FROM section_schedule_slots WHERE section_id = ?').run(section.id);
+    dbInst.prepare('INSERT INTO section_schedule_slots (section_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)').run(section.id, Number(day_of_week), start_time, end_time);
+  }
   res.json({ ok: true });
 });
 
