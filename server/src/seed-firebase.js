@@ -22,14 +22,21 @@ async function seedFirebase() {
 
   // 1. Users Collection
   const users = [
-    { id: 1, email: 'admin@univ.edu', password_hash: hash('admin123'), name: 'System Admin', role: 'admin' },
-    { id: 2, email: 'staff@univ.edu', password_hash: hash('staff123'), name: 'Academic Office', role: 'academic_staff' },
-    { id: 3, email: 'hod.cs@univ.edu', password_hash: hash('hod123'), name: 'Dr. Alan Turing (HOD CS)', role: 'dept_head' },
-    { id: 4, email: 'prof.smith@univ.edu', password_hash: hash('prof123'), name: 'Prof. John Smith', role: 'instructor' },
-    { id: 5, email: 'prof.davis@univ.edu', password_hash: hash('prof123'), name: 'Prof. Sarah Davis', role: 'instructor' },
-    { id: 6, email: 'student1@univ.edu', password_hash: hash('stud123'), name: 'Alice Johnson', role: 'student' },
-    { id: 7, email: 'student2@univ.edu', password_hash: hash('stud123'), name: 'Bob Williams', role: 'student' },
-    { id: 8, email: 'mtech1@univ.edu', password_hash: hash('stud123'), name: 'Carol Danvers', role: 'student' },
+    // Primary Demo Accounts
+    { id: 1, email: 'admin@uni.edu', password_hash: hash('admin123'), name: 'System Admin', role: 'admin' },
+    { id: 2, email: 'staff@uni.edu', password_hash: hash('staff123'), name: 'Academic Staff', role: 'academic_staff' },
+    { id: 3, email: 'head@uni.edu', password_hash: hash('head123'), name: 'Dr. Alan Turing (HOD CS)', role: 'dept_head' },
+    { id: 4, email: 'dr.smith@uni.edu', password_hash: hash('inst123'), name: 'Prof. John Smith', role: 'instructor' },
+    { id: 5, email: 'dr.jones@uni.edu', password_hash: hash('inst123'), name: 'Prof. Sarah Davis', role: 'instructor' },
+    { id: 6, email: 'alice@student.uni.edu', password_hash: hash('student123'), name: 'Alice Johnson', role: 'student' },
+    { id: 7, email: 'bob@student.uni.edu', password_hash: hash('student123'), name: 'Bob Williams', role: 'student' },
+    
+    // Additional Aliases
+    { id: 8, email: 'admin@univ.edu', password_hash: hash('admin123'), name: 'System Admin', role: 'admin' },
+    { id: 9, email: 'staff@univ.edu', password_hash: hash('staff123'), name: 'Academic Office', role: 'academic_staff' },
+    { id: 10, email: 'hod.cs@univ.edu', password_hash: hash('hod123'), name: 'Dr. Alan Turing (HOD CS)', role: 'dept_head' },
+    { id: 11, email: 'prof.smith@univ.edu', password_hash: hash('prof123'), name: 'Prof. John Smith', role: 'instructor' },
+    { id: 12, email: 'student1@univ.edu', password_hash: hash('stud123'), name: 'Alice Johnson', role: 'student' },
   ];
 
   console.log('⏳ Seeding users...');
@@ -67,7 +74,7 @@ async function seedFirebase() {
   const students = [
     { id: 1, user_id: 6, program_id: 1, batch_year: 2023, roll_number: 'CS2023001', profile_completed: 1, previous_degree: 'High School', previous_grade: 'A', current_semester_id: 1 },
     { id: 2, user_id: 7, program_id: 1, batch_year: 2023, roll_number: 'CS2023002', profile_completed: 1, previous_degree: 'High School', previous_grade: 'B+', current_semester_id: 1 },
-    { id: 3, user_id: 8, program_id: 2, batch_year: 2024, roll_number: 'CS2024M01', profile_completed: 1, previous_degree: 'B.Tech CS', previous_grade: 'A', current_semester_id: 1 },
+    { id: 3, user_id: 12, program_id: 1, batch_year: 2023, roll_number: 'CS2023003', profile_completed: 1, previous_degree: 'High School', previous_grade: 'A', current_semester_id: 1 },
   ];
 
   console.log('⏳ Seeding student profiles...');

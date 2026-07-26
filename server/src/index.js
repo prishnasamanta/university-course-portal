@@ -11,7 +11,11 @@ import workflowRoutes from './routes/workflow.js';
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Initialize DB and Firebase asynchronously
