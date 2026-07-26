@@ -389,3 +389,222 @@
 .checkbox-label { display: flex; align-items: center; gap: 0.35rem; font-weight: 500; font-size: 0.85rem; }
 .marks-input { width: 80px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; }
 .approve-all-label { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; }
+
+/* ===== Login Tabs ===== */
+.login-tabs {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+.login-tab {
+  flex: 1;
+  padding: 0.65rem;
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+.login-tab.active {
+  background: var(--primary);
+  color: white;
+}
+.login-tab:hover:not(.active) { background: #f3f4f6; }
+
+.login-switch-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.75rem;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+.link-btn:hover { text-decoration: underline; }
+
+/* ===== Enriched Demo Cards ===== */
+.demo-accounts { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+.demo-accounts h3 { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.demo-grid { display: grid; gap: 0.5rem; }
+.demo-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  text-align: left;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  width: 100%;
+}
+.demo-btn:hover { border-color: var(--primary); background: #eef2ff; transform: translateX(2px); }
+.demo-avatar { font-size: 1.6rem; flex-shrink: 0; margin-top: 0.1rem; }
+.demo-info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.demo-info strong { font-size: 0.9rem; display: block; }
+.demo-info small { font-size: 0.75rem; color: var(--muted); display: block; line-height: 1.4; }
+.demo-role-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: var(--primary);
+  width: fit-content;
+}
+
+/* ===== User name button in topbar ===== */
+.user-name-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.9rem 0.5rem 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.user-name-btn:hover { background: #f3f4f6; border-color: var(--primary); }
+.user-avatar-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #818cf8);
+  color: white;
+  font-weight: 700;
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.user-name-block { text-align: left; }
+.user-name-block strong { display: block; font-size: 0.9rem; }
+.user-name-block small { display: block; color: var(--muted); font-size: 0.72rem; }
+.user-chevron { color: var(--muted); font-size: 1.2rem; line-height: 1; }
+
+/* ===== Profile Panel (slide-in drawer) ===== */
+.profile-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(2px);
+  z-index: 300;
+  animation: fadeIn 0.2s ease;
+}
+.profile-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(360px, 92vw);
+  background: var(--surface);
+  box-shadow: -8px 0 40px rgba(0,0,0,0.15);
+  z-index: 301;
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.profile-panel-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(0,0,0,0.07);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+  color: var(--text);
+  transition: background 0.15s;
+}
+.profile-panel-close:hover { background: rgba(0,0,0,0.14); }
+.profile-panel-hero {
+  padding: 2.5rem 1.5rem 1.5rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.profile-panel-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  font-size: 2.2rem;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 0.75rem;
+}
+.profile-panel-name {
+  font-size: 1.25rem;
+  margin: 0 0 0.4rem;
+}
+.profile-panel-role-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.profile-panel-email {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.4rem;
+}
+.profile-panel-body {
+  flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.profile-detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.profile-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+  gap: 1rem;
+}
+.profile-detail-item:last-child { border-bottom: none; }
+.profile-detail-label { color: var(--muted); font-weight: 500; flex-shrink: 0; }
+.profile-detail-value { font-weight: 600; text-align: right; }
+.profile-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+

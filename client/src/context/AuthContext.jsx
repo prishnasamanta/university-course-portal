@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
 
   const refreshProfile = useCallback(async () => {
     const me = await api.me();
@@ -22,6 +23,15 @@ export function AuthProvider({ children }) {
       return;
     }
     refreshProfile()
+      .then((me) => {
+        // Show profile setup if flagged from first login
+        if (localStorage.getItem('needs_profile_setup') === 'true') {
+          const role = me.user?.role;
+          if (role === 'student' || role === 'instructor') {
+            setShowProfileSetup(true);
+          }
+        }
+      })
       .catch(() => localStorage.removeItem('token'))
       .finally(() => setLoading(false));
   }, [refreshProfile]);
@@ -29,25 +39,49 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const { token } = await api.login(email, password);
     localStorage.setItem('token', token);
+    localStorage.setItem('needs_profile_setup', 'true');
     const me = await refreshProfile();
+    const role = me.user?.role;
+    if (role === 'student' || role === 'instructor') {
+      setShowProfileSetup(true);
+    }
+    return me.user;
+  };
+
+  const register = async (name, email, password, role) => {
+    const { token } = await api.register(name, email, password, role);
+    localStorage.setItem('token', token);
+    localStorage.setItem('needs_profile_setup', 'true');
+    const me = await refreshProfile();
+    if (role === 'student' || role === 'instructor') {
+      setShowProfileSetup(true);
+    }
     return me.user;
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('needs_profile_setup');
     setUser(null);
     setProfile(null);
+    setShowProfileSetup(false);
   };
 
-  const needsProfileSetup = () => {
-    if (!user || !profile) return false;
-    if (user.role === 'student') return !profile.profile_completed;
-    if (user.role === 'instructor') return !profile.profile_completed;
-    return false;
+  const completeProfileSetup = async () => {
+    localStorage.removeItem('needs_profile_setup');
+    setShowProfileSetup(false);
+    await refreshProfile();
   };
+
+  const needsProfileSetup = () => showProfileSetup;
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, logout, refreshProfile, needsProfileSetup }}>
+    <AuthContext.Provider value={{
+      user, profile, loading,
+      login, logout, register,
+      refreshProfile, needsProfileSetup,
+      completeProfileSetup, showProfileSetup
+    }}>
       {children}
     </AuthContext.Provider>
   );

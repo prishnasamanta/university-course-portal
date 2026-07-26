@@ -3,42 +3,113 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const DEMO_ACCOUNTS = [
-  { email: 'dr.smith@uni.edu', password: 'inst123', role: 'Instructor' },
-  { email: 'alice@student.uni.edu', password: 'student123', role: 'Student' },
-  { email: 'staff@uni.edu', password: 'staff123', role: 'Academic Staff' },
-  { email: 'head@uni.edu', password: 'head123', role: 'Dept Head' },
-  { email: 'admin@uni.edu', password: 'admin123', role: 'Admin' },
+  {
+    email: 'alice@student.uni.edu',
+    password: 'student123',
+    role: 'student',
+    label: 'Student',
+    name: 'Alice Johnson',
+    avatar: '🧑‍🎓',
+    bio: '4th year B.Tech Computer Science student, enrolled in AI & Algorithms'
+  },
+  {
+    email: 'dr.smith@uni.edu',
+    password: 'inst123',
+    role: 'instructor',
+    label: 'Instructor',
+    name: 'Prof. John Smith',
+    avatar: '👨‍🏫',
+    bio: 'Professor of Algorithms & Data Structures, Dept. of Computer Science'
+  },
+  {
+    email: 'staff@uni.edu',
+    password: 'staff123',
+    role: 'academic_staff',
+    label: 'Academic Staff',
+    name: 'Sarah Williams',
+    avatar: '🗂️',
+    bio: 'Manages course registration, exam scheduling & grade workflows'
+  },
+  {
+    email: 'head@uni.edu',
+    password: 'head123',
+    role: 'dept_head',
+    label: 'Dept. Head (HOD)',
+    name: 'Dr. Anita Sharma',
+    avatar: '🏛️',
+    bio: 'Head of Computer Science Department — approves & publishes final results'
+  },
+  {
+    email: 'admin@uni.edu',
+    password: 'admin123',
+    role: 'admin',
+    label: 'Administrator',
+    name: 'System Admin',
+    avatar: '🔑',
+    bio: 'Full system access — manages all users, programs, courses & settings'
+  },
 ];
 
 export default function Login() {
-  const [email, setEmail] = useState('dr.smith@uni.edu');
-  const [password, setPassword] = useState('inst123');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [tab, setTab] = useState('signin');
+
+  // Sign in state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [signinError, setSigninError] = useState('');
+  const [signinLoading, setSigninLoading] = useState(false);
+
+  // Create account state
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState('student');
+  const [regError, setRegError] = useState('');
+  const [regLoading, setRegLoading] = useState(false);
+
+  const { login, register } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleSignin = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    setSigninError('');
+    setSigninLoading(true);
     try {
       await login(email, password);
       navigate('/');
     } catch (err) {
-      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-        setError('Server is waking up (cold start). Please wait ~15-20 seconds and click Sign In again!');
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        setSigninError('Server is waking up (cold start). Please wait ~20 seconds and try again!');
       } else {
-        setError(err.message || 'Login failed. Please check your credentials.');
+        setSigninError(err.message || 'Login failed. Check your credentials.');
       }
     } finally {
-      setLoading(false);
+      setSigninLoading(false);
     }
   };
 
-  const quickLogin = (account) => {
-    setEmail(account.email);
-    setPassword(account.password);
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setRegError('');
+    if (regPassword.length < 6) {
+      setRegError('Password must be at least 6 characters');
+      return;
+    }
+    setRegLoading(true);
+    try {
+      await register(regName, regEmail, regPassword, regRole);
+      navigate('/');
+    } catch (err) {
+      setRegError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
+  const quickLogin = (acc) => {
+    setTab('signin');
+    setEmail(acc.email);
+    setPassword(acc.password);
   };
 
   return (
@@ -47,31 +118,87 @@ export default function Login() {
         <div className="login-header">
           <span className="brand-icon large">🎓</span>
           <h1>University Portal</h1>
-          <p>Course Registration & Result Publication System</p>
+          <p>Course Registration &amp; Result Publication System</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          {error && <div className="alert alert-error">{error}</div>}
-          <label>
-            Email
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-          </label>
-          <label>
-            Password
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-          </label>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Connecting to Server...' : 'Sign In'}
+        {/* Tab switcher */}
+        <div className="login-tabs">
+          <button
+            type="button"
+            className={`login-tab ${tab === 'signin' ? 'active' : ''}`}
+            onClick={() => setTab('signin')}
+          >
+            Sign In
           </button>
-        </form>
+          <button
+            type="button"
+            className={`login-tab ${tab === 'register' ? 'active' : ''}`}
+            onClick={() => setTab('register')}
+          >
+            Create Account
+          </button>
+        </div>
 
+        {/* Sign In form */}
+        {tab === 'signin' && (
+          <form onSubmit={handleSignin} className="login-form">
+            {signinError && <div className="alert alert-error">{signinError}</div>}
+            <label>
+              Email
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="your@email.com" />
+            </label>
+            <label>
+              Password
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
+            </label>
+            <button type="submit" className="btn btn-primary btn-block" disabled={signinLoading}>
+              {signinLoading ? 'Signing in…' : 'Sign In'}
+            </button>
+          </form>
+        )}
+
+        {/* Register form */}
+        {tab === 'register' && (
+          <form onSubmit={handleRegister} className="login-form">
+            {regError && <div className="alert alert-error">{regError}</div>}
+            <label>
+              Full Name
+              <input value={regName} onChange={e => setRegName(e.target.value)} required placeholder="Your full name" />
+            </label>
+            <label>
+              Email
+              <input type="email" value={regEmail} onChange={e => setRegEmail(e.target.value)} required placeholder="your@email.com" />
+            </label>
+            <label>
+              Password
+              <input type="password" value={regPassword} onChange={e => setRegPassword(e.target.value)} required placeholder="Min. 6 characters" />
+            </label>
+            <label>
+              I am a…
+              <select value={regRole} onChange={e => setRegRole(e.target.value)}>
+                <option value="student">Student</option>
+                <option value="instructor">Instructor / Faculty</option>
+              </select>
+            </label>
+            <button type="submit" className="btn btn-primary btn-block" disabled={regLoading}>
+              {regLoading ? 'Creating account…' : 'Create Account'}
+            </button>
+            <p className="login-switch-hint">Already have an account? <button type="button" className="link-btn" onClick={() => setTab('signin')}>Sign in</button></p>
+          </form>
+        )}
+
+        {/* Demo accounts */}
         <div className="demo-accounts">
-          <h3>Demo Accounts</h3>
+          <h3>Demo Accounts — Click to fill</h3>
           <div className="demo-grid">
             {DEMO_ACCOUNTS.map(acc => (
               <button key={acc.email} type="button" className="demo-btn" onClick={() => quickLogin(acc)}>
-                <strong>{acc.role}</strong>
-                <small>{acc.email}</small>
+                <span className="demo-avatar">{acc.avatar}</span>
+                <div className="demo-info">
+                  <strong>{acc.name}</strong>
+                  <span className="demo-role-badge">{acc.label}</span>
+                  <small>{acc.bio}</small>
+                </div>
               </button>
             ))}
           </div>

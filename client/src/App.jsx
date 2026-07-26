@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
@@ -27,19 +26,13 @@ function ProtectedRoute({ children, roles }) {
 }
 
 function ProfileGate({ children }) {
-  const { user, needsProfileSetup, refreshProfile } = useAuth();
-  const [ready, setReady] = useState(false);
+  const { user, needsProfileSetup, completeProfileSetup } = useAuth();
 
-  const onProfileComplete = async () => {
-    await refreshProfile();
-    setReady(true);
-  };
-
-  if (user?.role === 'student' && needsProfileSetup() && !ready) {
-    return <StudentProfileOverlay onComplete={onProfileComplete} />;
+  if (user?.role === 'student' && needsProfileSetup()) {
+    return <StudentProfileOverlay onComplete={completeProfileSetup} />;
   }
-  if (user?.role === 'instructor' && needsProfileSetup() && !ready) {
-    return <InstructorProfileOverlay onComplete={onProfileComplete} />;
+  if (user?.role === 'instructor' && needsProfileSetup()) {
+    return <InstructorProfileOverlay onComplete={completeProfileSetup} />;
   }
   return children;
 }
