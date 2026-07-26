@@ -1,0 +1,21 @@
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --text: #1a1f36;
+  --muted: #6b7280;
+  --primary: #4f46e5;
+  --primary-dark: #4338ca;
+  --danger: #dc2626;
+  --success: #059669;
+  --border: #e5e7eb;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { min-height: 100vh; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }

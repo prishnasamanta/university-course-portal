@@ -1,0 +1,23 @@
+services:
+  # 1. Backend API Service on Render
+  - type: web
+    name: university-portal-api
+    env: node
+    region: oregon
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: DB_TYPE
+        value: firebase
+      - key: FIREBASE_PROJECT_ID
+        value: university-reg-portal
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
