@@ -7,7 +7,16 @@ import { signToken, authRequired } from '../middleware/auth.js';
 const router = Router();
 
 async function findUserByEmail(email) {
-  // 1. Try Firestore
+  // 1. Try SQLite first (contains authoritative pre-seeded accounts)
+  try {
+    const db = await getDb();
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    if (user) return user;
+  } catch (err) {
+    console.error('[SQLite Auth Error]:', err.message);
+  }
+
+  // 2. Fallback to Firestore (for accounts created via Create Account tab)
   try {
     const firestore = getFirestoreDb();
     if (firestore) {
@@ -21,14 +30,7 @@ async function findUserByEmail(email) {
     console.warn('[Firestore Auth Warning]:', err.message);
   }
 
-  // 2. Fallback to SQLite
-  try {
-    const db = await getDb();
-    return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  } catch (err) {
-    console.error('[SQLite Auth Error]:', err.message);
-    return null;
-  }
+  return null;
 }
 
 async function findUserById(id) {
