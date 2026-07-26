@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { initDb } from './db/index.js';
 import dbHolder from './db/index.js';
 import { initFirebase, getFirebaseStatus } from './db/firebase.js';
+import { initPostgres, getPostgresPool } from './db/postgres.js';
 import authRoutes from './routes/auth.js';
 import studentRoutes from './routes/students.js';
 import instructorRoutes from './routes/instructors.js';
@@ -24,17 +25,24 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Initialize DB and Firebase asynchronously
-initDb().then(db => {
+let isPostgresActive = false;
+
+// Initialize DBs asynchronously
+(async () => {
+  if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PGURI) {
+    isPostgresActive = await initPostgres();
+  }
+  const db = await initDb();
   dbHolder.setInstance(db);
   initFirebase();
-}).catch(console.error);
+})().catch(console.error);
 
 // Health check endpoints
 const healthHandler = (_req, res) => {
   res.json({
     status: 'ok',
     service: 'University Course Portal API',
+    database: isPostgresActive ? 'PostgreSQL' : 'SQLite',
     firebase: getFirebaseStatus()
   });
 };

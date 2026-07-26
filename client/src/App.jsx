@@ -29,13 +29,19 @@ function ProtectedRoute({ children, roles }) {
 
 function ProfileGate({ children }) {
   const { user, needsProfileSetup, completeProfileSetup } = useAuth();
-  if (user?.role === 'student' && needsProfileSetup()) {
-    return <StudentProfileOverlay onComplete={completeProfileSetup} />;
-  }
-  if (user?.role === 'instructor' && needsProfileSetup()) {
-    return <InstructorProfileOverlay onComplete={completeProfileSetup} />;
-  }
-  return children;
+  const showSetup = typeof needsProfileSetup === 'function' ? needsProfileSetup() : Boolean(needsProfileSetup);
+
+  return (
+    <>
+      {user?.role === 'student' && showSetup && (
+        <StudentProfileOverlay onComplete={completeProfileSetup} />
+      )}
+      {user?.role === 'instructor' && showSetup && (
+        <InstructorProfileOverlay onComplete={completeProfileSetup} />
+      )}
+      {children}
+    </>
+  );
 }
 
 function HomeRouter() {
