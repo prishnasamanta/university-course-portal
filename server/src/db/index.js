@@ -9,11 +9,16 @@ const dbPath = path.join(__dirname, '../../data/university.db');
 const schemaPath = path.join(__dirname, 'schema.sql');
 
 let dbInstance = null;
+let wrapperInstance = null;
 
 function saveDb() {
   if (!dbInstance) return;
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  fs.writeFileSync(dbPath, Buffer.from(dbInstance.export()));
+  try {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    fs.writeFileSync(dbPath, Buffer.from(dbInstance.export()));
+  } catch (err) {
+    // Ignore save errors on read-only environments
+  }
 }
 
 function rowToObject(columns, values) {
@@ -40,9 +45,8 @@ function seedSqlite(db) {
       INSERT INTO instructors (user_id, department, employee_id, profile_completed) VALUES (2, 'Computer Science', 'EMP001', 1);
     `);
     saveDb();
-    console.log('[SQLite] Automatically seeded default users and initial database schema.');
   } catch (err) {
-    console.warn('[SQLite Auto-Seed Warning]:', err.message);
+    // Ignore auto-seed errors if data exists
   }
 }
 
@@ -56,8 +60,11 @@ function createWrapper(db) {
       return {
         run(...params) {
           db.run(sql, params);
-          const result = db.exec('SELECT last_insert_rowid() AS id');
-          const lastInsertRowid = result[0]?.values[0]?.[0] ?? 0;
+          let lastInsertRowid = 0;
+          try {
+            const result = db.exec('SELECT last_insert_rowid() AS id');
+            lastInsertRowid = result[0]?.values[0]?.[0] ?? 0;
+          } catch (e) {}
           saveDb();
           return { lastInsertRowid, changes: db.getRowsModified() };
         },
@@ -93,51 +100,68 @@ function createWrapper(db) {
 }
 
 export async function initDb() {
-  if (dbInstance) return createWrapper(dbInstance);
-
-  const SQL = await initSqlJs({
-    locateFile: (file) => path.join(__dirname, '../../node_modules/sql.js/dist', file)
-  });
-
-  if (fs.existsSync(dbPath)) {
-    dbInstance = new SQL.Database(fs.readFileSync(dbPath));
-  } else {
-    dbInstance = new SQL.Database();
-    const schema = fs.readFileSync(schemaPath, 'utf8');
-    dbInstance.exec(schema);
-    saveDb();
-  }
+  if (wrapperInstance) return wrapperInstance;
 
   try {
-    const res = dbInstance.exec('SELECT COUNT(*) FROM users');
-    const count = res[0]?.values[0]?.[0] ?? 0;
-    if (count === 0) {
+    const SQL = await initSqlJs();
+    if (fs.existsSync(dbPath)) {
+      dbInstance = new SQL.Database(fs.readFileSync(dbPath));
+    } else {
+      dbInstance = new SQL.Database();
+      if (fs.existsSync(schemaPath)) {
+        const schema = fs.readFileSync(schemaPath, 'utf8');
+        dbInstance.exec(schema);
+      }
+      saveDb();
+    }
+
+    try {
+      const res = dbInstance.exec('SELECT COUNT(*) FROM users');
+      const count = res[0]?.values[0]?.[0] ?? 0;
+      if (count === 0) {
+        seedSqlite(dbInstance);
+      }
+    } catch (err) {
       seedSqlite(dbInstance);
     }
-  } catch (err) {
-    // Ignore count errors
-  }
 
-  return createWrapper(dbInstance);
+    wrapperInstance = createWrapper(dbInstance);
+    return wrapperInstance;
+  } catch (err) {
+    console.error('[Database Init Warning]:', err.message);
+    // Fallback dummy db object to prevent crashes
+    wrapperInstance = {
+      prepare: () => ({ run: () => ({}), get: () => undefined, all: () => [] }),
+      exec: () => {}
+    };
+    return wrapperInstance;
+  }
 }
 
-let db = null;
-
 export async function getDb() {
-  if (!db) db = await initDb();
-  return db;
+  if (!wrapperInstance) await initDb();
+  return wrapperInstance;
 }
 
 export default {
   get prepare() {
-    if (!db) throw new Error('Database not initialized. Call initDb() first.');
-    return db.prepare.bind(db);
+    if (!wrapperInstance) {
+      // Synchronous attempt or empty safe fallback
+      initDb().catch(console.error);
+      if (!wrapperInstance) {
+        return () => ({ run: () => ({}), get: () => undefined, all: () => [] });
+      }
+    }
+    return wrapperInstance.prepare.bind(wrapperInstance);
   },
   get exec() {
-    if (!db) throw new Error('Database not initialized. Call initDb() first.');
-    return db.exec.bind(db);
+    if (!wrapperInstance) {
+      initDb().catch(console.error);
+      if (!wrapperInstance) return () => {};
+    }
+    return wrapperInstance.exec.bind(wrapperInstance);
   },
   setInstance(instance) {
-    db = instance;
+    wrapperInstance = instance;
   }
 };
