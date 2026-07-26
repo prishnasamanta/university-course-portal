@@ -1,5 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { initDb } from './db/index.js';
 import dbHolder from './db/index.js';
 import { initFirebase, getFirebaseStatus } from './db/firebase.js';
@@ -7,6 +10,9 @@ import authRoutes from './routes/auth.js';
 import studentRoutes from './routes/students.js';
 import instructorRoutes from './routes/instructors.js';
 import workflowRoutes from './routes/workflow.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -24,15 +30,6 @@ initDb().then(db => {
   initFirebase();
 }).catch(console.error);
 
-app.get('/', (_req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'University Course Portal API Server is running live on Render!',
-    health: '/api/health',
-    firebase: getFirebaseStatus()
-  });
-});
-
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -45,6 +42,26 @@ app.use('/api/auth', authRoutes);
 app.use('/api', studentRoutes);
 app.use('/api/instructor', instructorRoutes);
 app.use('/api/workflow', workflowRoutes);
+
+// Serve static frontend UI if dist directory exists
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API route not found' });
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+} else {
+  app.get('/', (_req, res) => {
+    res.json({
+      status: 'ok',
+      message: 'University Course Portal API Server is running live on Render!',
+      health: '/api/health',
+      firebase: getFirebaseStatus()
+    });
+  });
+}
 
 app.use((err, _req, res, _next) => {
   console.error(err);

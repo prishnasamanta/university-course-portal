@@ -1,11 +1,10 @@
 services:
-  # 1. Backend API Service on Render
+  # Single Full-Stack Web Application Service on Render (UI + API)
   - type: web
-    name: university-portal-api
+    name: university-course-portal
     env: node
     region: oregon
-    rootDir: server
-    buildCommand: npm install
+    buildCommand: npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
