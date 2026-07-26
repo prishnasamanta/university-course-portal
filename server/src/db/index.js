@@ -271,6 +271,7 @@ export async function initDb() {
           }
           saveDb();
         }
+        dbInstance.exec('PRAGMA foreign_keys = ON;');
 
         try {
           const res = dbInstance.exec('SELECT COUNT(*) FROM users');
