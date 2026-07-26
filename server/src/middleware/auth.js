@@ -34,9 +34,32 @@ export function requireRoles(...roles) {
 }
 
 export function getStudentByUserId(userId) {
-  return db.prepare('SELECT * FROM students WHERE user_id = ?').get(userId);
+  let student = db.prepare('SELECT * FROM students WHERE user_id = ?').get(userId);
+  if (!student && userId) {
+    try {
+      const defaultProgram = db.prepare('SELECT id FROM programs LIMIT 1').get()?.id || 1;
+      const rollNo = `STU${Date.now().toString().slice(-6)}`;
+      db.prepare(`
+        INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
+        VALUES (?, ?, ?, ?, 0)
+      `).run(userId, defaultProgram, new Date().getFullYear(), rollNo);
+      student = db.prepare('SELECT * FROM students WHERE user_id = ?').get(userId);
+    } catch (e) { /* ignore */ }
+  }
+  return student;
 }
 
 export function getInstructorByUserId(userId) {
-  return db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(userId);
+  let instructor = db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(userId);
+  if (!instructor && userId) {
+    try {
+      const empId = `EMP${Date.now().toString().slice(-6)}`;
+      db.prepare(`
+        INSERT INTO instructors (user_id, department, employee_id, profile_completed)
+        VALUES (?, ?, ?, 0)
+      `).run(userId, 'Computer Science', empId);
+      instructor = db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(userId);
+    } catch (e) { /* ignore */ }
+  }
+  return instructor;
 }

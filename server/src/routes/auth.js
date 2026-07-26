@@ -150,16 +150,28 @@ router.post('/register', async (req, res) => {
       console.warn('[Register Firestore Warning]:', err.message);
     }
 
-    // Fallback: also save to SQLite
-    if (!savedToFirestore) {
-      try {
-        const db = await getDb();
-        db.prepare('INSERT INTO users (id, name, email, role, password_hash) VALUES (?, ?, ?, ?, ?)')
-          .run(newId, name, email, role, password_hash);
-      } catch (err) {
-        console.error('[Register SQLite Error]:', err.message);
-        return res.status(500).json({ error: 'Failed to create account' });
+    // Always save to local database for fast queries
+    try {
+      const db = await getDb();
+      db.prepare('INSERT INTO users (id, name, email, role, password_hash) VALUES (?, ?, ?, ?, ?)')
+        .run(newId, name, email, role, password_hash);
+
+      if (role === 'student') {
+        const defaultProgram = db.prepare('SELECT id FROM programs LIMIT 1').get()?.id || 1;
+        const rollNo = `STU${Date.now().toString().slice(-6)}`;
+        db.prepare(`
+          INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
+          VALUES (?, ?, ?, ?, 0)
+        `).run(newId, defaultProgram, new Date().getFullYear(), rollNo);
+      } else if (role === 'instructor') {
+        const empId = `EMP${Date.now().toString().slice(-6)}`;
+        db.prepare(`
+          INSERT INTO instructors (user_id, department, employee_id, profile_completed)
+          VALUES (?, ?, ?, 0)
+        `).run(newId, 'Computer Science', empId);
       }
+    } catch (err) {
+      console.warn('[Register DB Warning]:', err.message);
     }
 
     const token = signToken({ ...newUser, id: newId });
