@@ -20,6 +20,15 @@ initDb().then(db => {
   initFirebase();
 }).catch(console.error);
 
+app.get('/', (_req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'University Course Portal API Server is running live on Render!',
+    health: '/api/health',
+    firebase: getFirebaseStatus()
+  });
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
