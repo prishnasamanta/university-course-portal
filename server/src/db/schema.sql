@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS sections (
   instructor_id INTEGER REFERENCES instructors(id),
   capacity INTEGER NOT NULL CHECK (capacity > 0),
   room TEXT,
+  exam_requested INTEGER NOT NULL DEFAULT 0,
+  exam_reg_open INTEGER NOT NULL DEFAULT 0,
   UNIQUE (course_id, semester_id, section_code)
 );
 
@@ -176,7 +178,23 @@ CREATE TABLE IF NOT EXISTS result_workflow (
   updated_by INTEGER REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS exam_registrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+  registered_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(enrollment_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_sections_semester ON sections(semester_id);
 CREATE INDEX IF NOT EXISTS idx_enrollments_student ON enrollments(student_id);
 CREATE INDEX IF NOT EXISTS idx_enrollments_section ON enrollments(section_id);
 CREATE INDEX IF NOT EXISTS idx_section_slots ON section_schedule_slots(section_id);
+
+INSERT OR IGNORE INTO grading_policy (letter_grade, min_percent, grade_point) VALUES
+  ('O', 90, 10),
+  ('A+', 80, 9),
+  ('A', 70, 8),
+  ('B+', 60, 7),
+  ('B', 50, 6),
+  ('C', 40, 5),
+  ('F', 0, 0);

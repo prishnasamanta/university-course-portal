@@ -105,4 +105,51 @@ router.post('/sections/:sectionId/hod-approve-all', authRequired, requireRoles('
   res.json(hodApproveAll(req.params.sectionId, req.user.id));
 });
 
+// GET /api/workflow/exam-requests — staff sees all sections where instructor requested exam
+router.get('/exam-requests', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT s.id AS section_id, s.section_code, s.exam_requested, s.exam_reg_open,
+           c.code AS course_code, c.title AS course_title, c.degree_level,
+           sem.name AS semester_name, sem.year,
+           u.name AS instructor_name,
+           (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.id AND e.status = 'registered') AS enrolled_count,
+           (SELECT COUNT(*) FROM exam_registrations er JOIN enrollments e ON e.id = er.enrollment_id WHERE e.section_id = s.id) AS exam_registered_count
+    FROM sections s
+    JOIN courses c ON c.id = s.course_id
+    JOIN semesters sem ON sem.id = s.semester_id
+    LEFT JOIN instructors i ON i.id = s.instructor_id
+    LEFT JOIN users u ON u.id = i.user_id
+    WHERE s.exam_requested = 1 OR s.exam_reg_open = 1
+    ORDER BY sem.year DESC, c.code
+  `).all();
+  res.json(rows);
+});
+
+// POST /api/workflow/sections/:sectionId/open-exam-reg — staff opens exam registration
+router.post('/sections/:sectionId/open-exam-reg', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  db.prepare('UPDATE sections SET exam_reg_open = 1 WHERE id = ?').run(req.params.sectionId);
+  res.json({ ok: true });
+});
+
+// POST /api/workflow/sections/:sectionId/close-exam-reg — staff closes exam registration
+router.post('/sections/:sectionId/close-exam-reg', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  db.prepare('UPDATE sections SET exam_reg_open = 0 WHERE id = ?').run(req.params.sectionId);
+  res.json({ ok: true });
+});
+
+// GET /api/workflow/sections/:sectionId/exam-registrations — staff sees who registered/didn't
+router.get('/sections/:sectionId/exam-registrations', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const enrolled = db.prepare(`
+    SELECT e.id AS enrollment_id, st.roll_number, u.name AS student_name,
+           er.id AS exam_reg_id, er.registered_at
+    FROM enrollments e
+    JOIN students st ON st.id = e.student_id
+    JOIN users u ON u.id = st.user_id
+    LEFT JOIN exam_registrations er ON er.enrollment_id = e.id
+    WHERE e.section_id = ? AND e.status = 'registered'
+    ORDER BY st.roll_number
+  `).all(req.params.sectionId);
+  res.json(enrolled);
+});
+
 export default router;

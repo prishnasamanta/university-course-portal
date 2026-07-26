@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import db from '../db/index.js';
+import db, { getDb } from '../db/index.js';
 
 import { authRequired, requireRoles, getStudentByUserId } from '../middleware/auth.js';
 
@@ -548,6 +548,77 @@ router.get('/instructor-preferences', authRequired, requireRoles('admin', 'acade
 });
 
 
+
+// GET /api/exam-registrations — student sees which sections have exam open
+router.get('/exam-registrations', authRequired, requireRoles('student'), async (req, res) => {
+  const student = getStudentByUserId(req.user.id);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  
+  const dbInst = await getDb();
+  const rows = dbInst.prepare(`
+    SELECT e.id AS enrollment_id, c.code, c.title, c.credits, s.id AS section_id,
+           s.section_code, s.exam_reg_open, s.exam_requested,
+           sem.name AS semester_name, sem.year,
+           u.name AS instructor_name,
+           (SELECT COUNT(*) FROM exam_registrations er WHERE er.enrollment_id = e.id) AS already_registered
+    FROM enrollments e
+    JOIN sections s ON s.id = e.section_id
+    JOIN courses c ON c.id = s.course_id
+    JOIN semesters sem ON sem.id = s.semester_id
+    LEFT JOIN instructors i ON i.id = s.instructor_id
+    LEFT JOIN users u ON u.id = i.user_id
+    WHERE e.student_id = ? AND e.status = 'registered' AND s.exam_reg_open = 1
+    ORDER BY c.code
+  `).all(student.id);
+  
+  res.json(rows);
+});
+
+// POST /api/exam-register/:enrollmentId — student registers for exam
+router.post('/exam-register/:enrollmentId', authRequired, requireRoles('student'), async (req, res) => {
+  const student = getStudentByUserId(req.user.id);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  
+  const dbInst = await getDb();
+  const enrollment = dbInst.prepare('SELECT e.*, s.exam_reg_open FROM enrollments e JOIN sections s ON s.id = e.section_id WHERE e.id = ? AND e.student_id = ?').get(req.params.enrollmentId, student.id);
+  if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
+  if (!enrollment.exam_reg_open) return res.status(400).json({ error: 'Exam registration is not open for this course' });
+  
+  try {
+    dbInst.prepare('INSERT INTO exam_registrations (enrollment_id) VALUES (?)').run(enrollment.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Already registered for this exam' });
+  }
+});
+
+// GET /api/my-exam-registrations — student sees their exam registration status
+router.get('/my-exam-registrations', authRequired, requireRoles('student'), async (req, res) => {
+  const student = getStudentByUserId(req.user.id);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  
+  const dbInst = await getDb();
+  const rows = dbInst.prepare(`
+    SELECT e.id AS enrollment_id, c.code, c.title, c.credits,
+           s.section_code, s.exam_reg_open, s.exam_requested,
+           sem.name AS semester_name, sem.year,
+           u.name AS instructor_name,
+           er.id AS exam_reg_id, er.registered_at,
+           rw.status AS result_status
+    FROM enrollments e
+    JOIN sections s ON s.id = e.section_id
+    JOIN courses c ON c.id = s.course_id
+    JOIN semesters sem ON sem.id = s.semester_id
+    LEFT JOIN instructors i ON i.id = s.instructor_id
+    LEFT JOIN users u ON u.id = i.user_id
+    LEFT JOIN exam_registrations er ON er.enrollment_id = e.id
+    LEFT JOIN result_workflow rw ON rw.enrollment_id = e.id
+    WHERE e.student_id = ? AND e.status = 'registered'
+    ORDER BY c.code
+  `).all(student.id);
+  
+  res.json(rows);
+});
 
 export default router;
 

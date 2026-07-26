@@ -78,7 +78,7 @@ export default function CourseRegistration() {
         setMessage({ type: 'error', text: validation.reason + (validation.missing ? `: ${validation.missing.map(m => m.code).join(', ')}` : '') });
         return;
       }
-      await api.register(selectedSection.id, selectedSlot.id);
+      await api.registerCourse(selectedSection.id, selectedSlot.id);
       setMessage({ type: 'success', text: `Registered for ${courseDetail.code} on ${selectedSlot.day_name}!` });
       setEnrollments(await api.getMyEnrollments());
       closeModal();

@@ -12,14 +12,15 @@ const ROLE_LABELS = {
 };
 
 export default function Layout() {
-  const { user, profile, showProfileSetup } = useAuth();
+  const { user, profile } = useAuth();
   const [panelOpen, setPanelOpen] = useState(false);
-  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   const studentLinks = [
     { to: '/', label: '🏠 Dashboard' },
     { to: '/register', label: '📚 Course Registration' },
-    { to: '/grades', label: '📊 Grade Card' },
+    { to: '/exam-register', label: '📝 Exam Registration' },
+    { to: '/my-results', label: '📊 My Results' },
+    { to: '/grades', label: '🎓 Grade Card' },
     { to: '/transcript', label: '📜 Transcript' },
   ];
 
@@ -29,7 +30,7 @@ export default function Layout() {
   ];
 
   const staffLinks = [
-    { to: '/', label: '🏠 Course Management' },
+    { to: '/', label: '🏠 Academic Office' },
     { to: '/grade-workflow', label: '📋 Grade Workflow' },
     { to: '/revisions', label: '🔁 Revisions' },
   ];
@@ -55,15 +56,8 @@ export default function Layout() {
           </div>
         </div>
         <div className="user-info">
-          <button
-            type="button"
-            className="user-name-btn"
-            onClick={() => setPanelOpen(true)}
-            title="View profile"
-          >
-            <div className="user-avatar-circle">
-              {user?.name?.[0]?.toUpperCase() || '?'}
-            </div>
+          <button type="button" className="user-name-btn" onClick={() => setPanelOpen(true)} title="View profile">
+            <div className="user-avatar-circle">{user?.name?.[0]?.toUpperCase() || '?'}</div>
             <div className="user-name-block">
               <strong>{user?.name}</strong>
               <small>{ROLE_LABELS[user?.role]} {profile?.roll_number ? `• ${profile.roll_number}` : ''}</small>
@@ -76,12 +70,8 @@ export default function Layout() {
       <div className="main-layout">
         <nav className="sidebar">
           {links.map(link => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === '/'}
-              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
-            >
+            <NavLink key={link.to} to={link.to} end={link.to === '/'}
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               {link.label}
             </NavLink>
           ))}
@@ -91,13 +81,7 @@ export default function Layout() {
         </main>
       </div>
 
-      {/* Profile slide-in panel */}
-      {panelOpen && (
-        <ProfilePanel
-          onClose={() => setPanelOpen(false)}
-          onEditProfile={() => setEditProfileOpen(true)}
-        />
-      )}
+      {panelOpen && <ProfilePanel onClose={() => setPanelOpen(false)} />}
     </div>
   );
 }

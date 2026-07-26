@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import db from '../db/index.js';
+import db, { getDb } from '../db/index.js';
 
 import { authRequired, requireRoles, getInstructorByUserId } from '../middleware/auth.js';
 
@@ -465,6 +465,28 @@ router.post('/revision-requests/:id/review', authRequired, requireRoles('dept_he
 });
 
 
+
+// POST /api/instructor/sections/:sectionId/request-exam
+router.post('/sections/:sectionId/request-exam', authRequired, requireRoles('instructor'), async (req, res) => {
+  const instructor = getInstructorByUserId(req.user.id);
+  const dbInst = await getDb();
+  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, instructor.id);
+  if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
+  
+  dbInst.prepare('UPDATE sections SET exam_requested = 1 WHERE id = ?').run(section.id);
+  res.json({ ok: true });
+});
+
+// POST /api/instructor/sections/:sectionId/cancel-exam-request
+router.post('/sections/:sectionId/cancel-exam-request', authRequired, requireRoles('instructor'), async (req, res) => {
+  const instructor = getInstructorByUserId(req.user.id);
+  const dbInst = await getDb();
+  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, instructor.id);
+  if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
+  
+  dbInst.prepare('UPDATE sections SET exam_requested = 0 WHERE id = ?').run(section.id);
+  res.json({ ok: true });
+});
 
 export default router;
 

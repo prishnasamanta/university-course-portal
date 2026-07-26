@@ -13,6 +13,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import StaffGradeWorkflow from './pages/StaffGradeWorkflow';
 import DeptHeadReview from './pages/DeptHeadReview';
 import RevisionRequests from './pages/RevisionRequests';
+import ExamRegistration from './pages/ExamRegistration';
+import StudentResults from './pages/StudentResults';
 import StudentProfileOverlay from './components/StudentProfileOverlay';
 import InstructorProfileOverlay from './components/InstructorProfileOverlay';
 import './App.css';
@@ -27,7 +29,6 @@ function ProtectedRoute({ children, roles }) {
 
 function ProfileGate({ children }) {
   const { user, needsProfileSetup, completeProfileSetup } = useAuth();
-
   if (user?.role === 'student' && needsProfileSetup()) {
     return <StudentProfileOverlay onComplete={completeProfileSetup} />;
   }
@@ -63,6 +64,8 @@ function AppRoutes() {
         <Route path="/register" element={<ProtectedRoute roles={['student']}><CourseRegistration /></ProtectedRoute>} />
         <Route path="/grades" element={<ProtectedRoute roles={['student']}><GradeCard /></ProtectedRoute>} />
         <Route path="/transcript" element={<ProtectedRoute roles={['student']}><Transcript /></ProtectedRoute>} />
+        <Route path="/exam-register" element={<ProtectedRoute roles={['student']}><ExamRegistration /></ProtectedRoute>} />
+        <Route path="/my-results" element={<ProtectedRoute roles={['student']}><StudentResults /></ProtectedRoute>} />
         <Route path="/results" element={<ProtectedRoute roles={['instructor']}><InstructorResults /></ProtectedRoute>} />
         <Route path="/marks/:sectionId" element={<ProtectedRoute roles={['instructor']}><MarksEntry /></ProtectedRoute>} />
         <Route path="/grade-workflow" element={<ProtectedRoute roles={['academic_staff', 'admin']}><StaffGradeWorkflow /></ProtectedRoute>} />

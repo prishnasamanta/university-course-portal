@@ -18,18 +18,14 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    if (!token) { setLoading(false); return; }
     refreshProfile()
       .then((me) => {
-        // Show profile setup if flagged from first login
-        if (localStorage.getItem('needs_profile_setup') === 'true') {
-          const role = me.user?.role;
-          if (role === 'student' || role === 'instructor') {
-            setShowProfileSetup(true);
-          }
+        // Only show setup popup if profile is explicitly incomplete
+        const role = me.user?.role;
+        const completed = me.profile?.profile_completed;
+        if ((role === 'student' || role === 'instructor') && completed === 0) {
+          setShowProfileSetup(true);
         }
       })
       .catch(() => localStorage.removeItem('token'))
@@ -39,10 +35,12 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const { token } = await api.login(email, password);
     localStorage.setItem('token', token);
-    localStorage.setItem('needs_profile_setup', 'true');
     const me = await refreshProfile();
     const role = me.user?.role;
-    if (role === 'student' || role === 'instructor') {
+    const profileDone = me.profile?.profile_completed;
+    // Only show setup for roles that need it AND haven't completed profile yet
+    if ((role === 'student' || role === 'instructor') && !profileDone) {
+      localStorage.setItem('needs_profile_setup', 'true');
       setShowProfileSetup(true);
     }
     return me.user;
@@ -51,24 +49,23 @@ export function AuthProvider({ children }) {
   const register = async (name, email, password, role) => {
     const { token } = await api.register(name, email, password, role);
     localStorage.setItem('token', token);
-    localStorage.setItem('needs_profile_setup', 'true');
-    const me = await refreshProfile();
+    await refreshProfile();
+    // New accounts always need profile setup
     if (role === 'student' || role === 'instructor') {
+      localStorage.setItem('needs_profile_setup', 'true');
       setShowProfileSetup(true);
     }
-    return me.user;
+    return { name, email, role };
   };
 
   const logout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('needs_profile_setup');
     setUser(null);
     setProfile(null);
     setShowProfileSetup(false);
   };
 
   const completeProfileSetup = async () => {
-    localStorage.removeItem('needs_profile_setup');
     setShowProfileSetup(false);
     await refreshProfile();
   };
