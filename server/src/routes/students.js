@@ -45,12 +45,12 @@ router.post('/profile/student', authRequired, requireRoles('student'), (req, res
     db.prepare(`
       UPDATE students
       SET program_id = ?, previous_degree = ?, previous_grade = ?, current_semester_id = ?, profile_completed = 1
-      WHERE id = ?
-    `).run(progId, previous_degree, previous_grade, semId, student.id);
+      WHERE user_id = ?
+    `).run(progId, previous_degree, previous_grade, semId, targetUserId);
   } else {
     const rollNo = `STU${Date.now().toString().slice(-6)}`;
     db.prepare(`
-      INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id)
+      INSERT OR IGNORE INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id)
       VALUES (?, ?, ?, ?, 1, ?, ?, ?)
     `).run(targetUserId, progId, new Date().getFullYear(), rollNo, previous_degree, previous_grade, semId);
   }

@@ -62,7 +62,7 @@ router.post('/profile', authRequired, requireRoles('instructor'), (req, res) => 
 
 
 
-  db.prepare('UPDATE instructors SET profile_completed = 1 WHERE id = ?').run(instructor.id);
+  db.prepare('UPDATE instructors SET profile_completed = 1 WHERE user_id = ?').run(req.user.id);
 
   const sync = syncSectionsFromPreferences(instructor.id, preferences[0]?.semester_id || null);
 

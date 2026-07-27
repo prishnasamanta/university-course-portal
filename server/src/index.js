@@ -47,6 +47,30 @@ const healthHandler = (_req, res) => {
 app.get('/health', healthHandler);
 app.get('/api/health', healthHandler);
 
+// DB Verification endpoint
+app.get('/api/db-verify', async (_req, res) => {
+  const pool = getPostgresPool();
+  if (!pool) {
+    return res.json({ status: 'PostgreSQL Pool not initialized, operating on local database engine' });
+  }
+  try {
+    const usersRes = await pool.query('SELECT id, name, email, role, created_at FROM users ORDER BY id DESC LIMIT 10');
+    const studentsRes = await pool.query('SELECT s.id, s.user_id, u.name, s.roll_number, s.previous_degree, s.previous_grade, s.profile_completed FROM students s JOIN users u ON u.id = s.user_id ORDER BY s.id DESC LIMIT 10');
+    const coursesRes = await pool.query('SELECT id, code, title, credits, department, degree_level FROM courses ORDER BY id DESC LIMIT 10');
+    
+    res.json({
+      status: 'live_postgresql',
+      database: 'PostgreSQL (Render)',
+      total_users: usersRes.rowCount,
+      recent_users: usersRes.rows,
+      recent_student_profiles: studentsRes.rows,
+      recent_courses: coursesRes.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/instructor', instructorRoutes);
