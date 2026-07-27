@@ -10,12 +10,17 @@ export function getPostgresPool() {
   const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PGURI;
   if (!connectionString) return null;
 
+  // Failsafe for copy-paste errors with spaces instead of underscores in the database name
+  const sanitizedString = connectionString.replace(/university db i4fc/gi, 'university_db_i4fc');
+
   if (!pool) {
+    const isLocalhost = sanitizedString.includes('localhost') || sanitizedString.includes('127.0.0.1');
+    const isRenderInternal = sanitizedString.includes('@dpg-') && !sanitizedString.includes('.render.com');
+    const requiresSsl = !isLocalhost && !isRenderInternal;
+
     pool = new Pool({
-      connectionString,
-      ssl: connectionString.includes('localhost') || connectionString.includes('127.0.0.1')
-        ? false
-        : { rejectUnauthorized: false }
+      connectionString: sanitizedString,
+      ssl: requiresSsl ? { rejectUnauthorized: false } : false
     });
   }
   return pool;

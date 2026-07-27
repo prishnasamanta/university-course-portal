@@ -12,13 +12,12 @@ function convertSqlForPostgres(sql) {
 
 async function testSync() {
   const pool = getPostgresPool();
-  if (!pool) {
-    console.log('No pool');
-    return;
-  }
   
-  const sql = 'INSERT INTO users (name, email, role, password_hash) VALUES (?, ?, ?, ?)';
-  const params = ['Test Sync', `testsync${Date.now()}@test.com`, 'student', '123'];
+  const sql = `
+        INSERT OR IGNORE INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
+        VALUES (?, ?, ?, ?, 0)
+      `;
+  const params = [1, 1, 2025, 'STU1'];
   const pgSql = convertSqlForPostgres(sql);
   
   console.log('Executing:', pgSql, params);
