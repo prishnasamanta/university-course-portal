@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
+import { getPostgresPool } from './postgres.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(__dirname, '../../data/university.db');
@@ -11,6 +12,25 @@ const schemaPath = path.join(__dirname, 'schema.sql');
 let dbInstance = null;
 let wrapperInstance = null;
 let initPromise = null;
+
+function convertSqlForPostgres(sql) {
+  let paramIndex = 1;
+  let pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
+  pgSql = pgSql.replace(/INSERT OR IGNORE INTO/gi, 'INSERT INTO');
+  if (sql.match(/INSERT OR IGNORE INTO/i) && !pgSql.match(/ON CONFLICT/i)) {
+    pgSql += ' ON CONFLICT DO NOTHING';
+  }
+  return pgSql;
+}
+
+function syncToPostgres(sql, params = []) {
+  const pool = getPostgresPool();
+  if (!pool) return;
+  try {
+    const pgSql = convertSqlForPostgres(sql);
+    pool.query(pgSql, params).catch(() => {});
+  } catch (e) {}
+}
 
 function saveDb() {
   if (!dbInstance) return;
@@ -39,7 +59,7 @@ function seedSqlite(db) {
     const ADM = hash('admin123');
 
     db.exec(`
-      INSERT INTO users (email, password_hash, name, role) VALUES
+      INSERT OR IGNORE INTO users (email, password_hash, name, role) VALUES
       ('alice@student.uni.edu', '${S123}', 'Alice Johnson', 'student'),
       ('dr.smith@uni.edu', '${PROF}', 'Prof. John Smith', 'instructor'),
       ('staff@uni.edu', '${ST123}', 'Sarah Williams', 'academic_staff'),
@@ -84,7 +104,7 @@ function seedSqlite(db) {
     `);
 
     db.exec(`
-      INSERT INTO programs (code, name, department) VALUES 
+      INSERT OR IGNORE INTO programs (code, name, department) VALUES 
       ('BTECH-CS', 'B.Tech Computer Science', 'cs'),
       ('MSC-CS', 'M.Sc Computer Science', 'cs'),
       ('MTECH-CS', 'M.Tech Computer Science', 'cs'),
@@ -93,7 +113,7 @@ function seedSqlite(db) {
     `);
 
     db.exec(`
-      INSERT INTO semesters (semester_number, name, year, is_active, registration_open, exams_completed) VALUES
+      INSERT OR IGNORE INTO semesters (semester_number, name, year, is_active, registration_open, exams_completed) VALUES
       (1, 'Semester 1', 2025, 1, 1, 0),
       (2, 'Semester 2', 2025, 0, 0, 0),
       (3, 'Semester 3', 2025, 0, 0, 0),
