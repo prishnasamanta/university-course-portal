@@ -333,6 +333,17 @@ export async function initPostgres() {
       `);
     }
 
+    // Reset PostgreSQL SERIAL Sequences to MAX(id)
+    await client.query(`
+      SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1));
+      SELECT setval(pg_get_serial_sequence('students', 'id'), COALESCE((SELECT MAX(id) FROM students), 1));
+      SELECT setval(pg_get_serial_sequence('instructors', 'id'), COALESCE((SELECT MAX(id) FROM instructors), 1));
+      SELECT setval(pg_get_serial_sequence('courses', 'id'), COALESCE((SELECT MAX(id) FROM courses), 1));
+      SELECT setval(pg_get_serial_sequence('sections', 'id'), COALESCE((SELECT MAX(id) FROM sections), 1));
+      SELECT setval(pg_get_serial_sequence('semesters', 'id'), COALESCE((SELECT MAX(id) FROM semesters), 1));
+      SELECT setval(pg_get_serial_sequence('programs', 'id'), COALESCE((SELECT MAX(id) FROM programs), 1));
+    `).catch(() => {});
+
     client.release();
     return true;
   } catch (err) {

@@ -28,7 +28,13 @@ function syncToPostgres(sql, params = []) {
   if (!pool) return;
   try {
     const pgSql = convertSqlForPostgres(sql);
-    pool.query(pgSql, params).catch(() => {});
+    pool.query(pgSql, params)
+      .then(() => {
+        console.log(`[PostgreSQL Sync OK]: ${pgSql.slice(0, 60)}...`);
+      })
+      .catch((err) => {
+        console.warn(`[PostgreSQL Sync Notice]: ${err.message}`);
+      });
   } catch (e) {}
 }
 
