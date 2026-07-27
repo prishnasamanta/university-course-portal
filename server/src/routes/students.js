@@ -405,17 +405,23 @@ router.get('/transcript', authRequired, requireRoles('student'), (req, res) => {
 
 
 router.post('/semesters', authRequired, requireRoles('admin', 'academic_staff'), (req, res) => {
+  const { name, year, semester_number, is_active, registration_open } = req.body;
+  
+  let semNum = semester_number;
+  if (!semNum && name) {
+    const match = name.match(/\d+/);
+    semNum = match ? parseInt(match[0], 10) : 1;
+  }
+  if (!semNum) semNum = 1;
 
-  const { name, year, is_active, registration_open } = req.body;
-
-  const result = db.prepare(`
-
-    INSERT INTO semesters (name, year, is_active, registration_open) VALUES (?, ?, ?, ?)
-
-  `).run(name, year, is_active ? 1 : 0, registration_open ? 1 : 0);
-
-  res.status(201).json({ id: result.lastInsertRowid });
-
+  try {
+    const result = db.prepare(`
+      INSERT INTO semesters (semester_number, name, year, is_active, registration_open) VALUES (?, ?, ?, ?, ?)
+    `).run(semNum, name || `Semester ${semNum}`, year || 2025, is_active ? 1 : 0, registration_open ? 1 : 0);
+    res.status(201).json({ id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 
