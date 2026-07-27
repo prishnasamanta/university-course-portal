@@ -197,38 +197,36 @@ router.get('/me', authRequired, async (req, res) => {
 
     if (user.role === 'student') {
       try {
-        // Try Firestore first
-        const firestore = getFirestoreDb();
-        if (firestore) {
-          const doc = await firestore.collection('students').where('user_id', '==', String(user.id)).limit(1).get();
-          if (!doc.empty) {
-            profile = { ...doc.docs[0].data(), id: doc.docs[0].id };
-          }
-        }
-        // Fallback to SQLite
+        profile = db.prepare(`
+          SELECT s.*, p.name AS program_name, p.code AS program_code, p.department,
+                 sem.name AS current_semester_name, sem.year AS current_semester_year
+          FROM students s
+          LEFT JOIN programs p ON p.id = s.program_id
+          LEFT JOIN semesters sem ON sem.id = s.current_semester_id
+          WHERE s.user_id = ?
+        `).get(user.id);
+        
         if (!profile) {
-          profile = db.prepare(`
-            SELECT s.*, p.name AS program_name, p.code AS program_code, p.department,
-                   sem.name AS current_semester_name, sem.year AS current_semester_year
-            FROM students s
-            JOIN programs p ON p.id = s.program_id
-            LEFT JOIN semesters sem ON sem.id = s.current_semester_id
-            WHERE s.user_id = ?
-          `).get(user.id);
+          const defaultProgram = db.prepare('SELECT id FROM programs LIMIT 1').get()?.id || 1;
+          const rollNo = `STU${user.id}${Math.floor(Math.random() * 10000)}`;
+          db.prepare(`
+            INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
+            VALUES (?, ?, ?, ?, 0)
+          `).run(user.id, defaultProgram, new Date().getFullYear(), rollNo);
+          profile = db.prepare('SELECT * FROM students WHERE user_id = ?').get(user.id);
         }
       } catch (err) {
         profile = { id: user.id, user_id: user.id, profile_completed: 0 };
       }
     } else if (user.role === 'instructor') {
       try {
-        const firestore = getFirestoreDb();
-        if (firestore) {
-          const doc = await firestore.collection('instructors').where('user_id', '==', String(user.id)).limit(1).get();
-          if (!doc.empty) {
-            profile = { ...doc.docs[0].data(), id: doc.docs[0].id };
-          }
-        }
+        profile = db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(user.id);
         if (!profile) {
+          const empId = `EMP${user.id}${Math.floor(Math.random() * 10000)}`;
+          db.prepare(`
+            INSERT INTO instructors (user_id, department, employee_id, profile_completed)
+            VALUES (?, ?, ?, 0)
+          `).run(user.id, 'Computer Science', empId);
           profile = db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(user.id);
         }
       } catch (err) {

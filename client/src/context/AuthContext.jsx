@@ -21,11 +21,13 @@ export function AuthProvider({ children }) {
     if (!token) { setLoading(false); return; }
     refreshProfile()
       .then((me) => {
-        // Only show setup popup if profile is explicitly incomplete
         const role = me.user?.role;
         const completed = me.profile?.profile_completed;
-        if ((role === 'student' || role === 'instructor') && completed === 0) {
+        if ((role === 'student' || role === 'instructor') && (completed === 0 || completed === false || completed == null)) {
           setShowProfileSetup(true);
+        } else {
+          setShowProfileSetup(false);
+          localStorage.removeItem('needs_profile_setup');
         }
       })
       .catch(() => localStorage.removeItem('token'))
@@ -38,10 +40,12 @@ export function AuthProvider({ children }) {
     const me = await refreshProfile();
     const role = me.user?.role;
     const profileDone = me.profile?.profile_completed;
-    // Only show setup for roles that need it AND haven't completed profile yet
-    if ((role === 'student' || role === 'instructor') && !profileDone) {
+    if ((role === 'student' || role === 'instructor') && (!profileDone || profileDone === 0)) {
       localStorage.setItem('needs_profile_setup', 'true');
       setShowProfileSetup(true);
+    } else {
+      localStorage.removeItem('needs_profile_setup');
+      setShowProfileSetup(false);
     }
     return me.user;
   };
@@ -50,7 +54,6 @@ export function AuthProvider({ children }) {
     const { token } = await api.register(name, email, password, role);
     localStorage.setItem('token', token);
     await refreshProfile();
-    // New accounts always need profile setup
     if (role === 'student' || role === 'instructor') {
       localStorage.setItem('needs_profile_setup', 'true');
       setShowProfileSetup(true);
@@ -60,12 +63,14 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('needs_profile_setup');
     setUser(null);
     setProfile(null);
     setShowProfileSetup(false);
   };
 
   const completeProfileSetup = async () => {
+    localStorage.removeItem('needs_profile_setup');
     setShowProfileSetup(false);
     await refreshProfile();
   };
