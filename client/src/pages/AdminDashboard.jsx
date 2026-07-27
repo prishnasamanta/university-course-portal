@@ -86,11 +86,40 @@ export default function AdminDashboard() {
     { id: 'workflow', label: '📊 Results Workflow' },
   ];
 
+  // Course edit state
+  const [editingCourse, setEditingCourse] = useState(null);
+
+  const saveCourseEdit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.updateCourse(editingCourse.id, editingCourse);
+      flash('success', `Updated course ${editingCourse.code} details in database.`);
+      setEditingCourse(null);
+      load();
+    } catch (err) {
+      flash('danger', err.message);
+    }
+  };
+
+  const addSlot = () => {
+    setNewSection(s => ({
+      ...s,
+      slots: [...s.slots, { day_of_week: 3, start_time: '14:00', end_time: '16:00' }]
+    }));
+  };
+
+  const removeSlot = (index) => {
+    setNewSection(s => ({
+      ...s,
+      slots: s.slots.filter((_, i) => i !== index)
+    }));
+  };
+
   return (
     <div>
       <div className="page-header">
         <h1>Academic Office</h1>
-        <p>Manage degrees, courses, registration, exams and results workflow</p>
+        <p>Manage degrees, courses, registration, exams, multi-day timetables and results workflow</p>
       </div>
 
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
@@ -141,7 +170,8 @@ export default function AdminDashboard() {
                   <label style={{ fontWeight:600, fontSize:'0.85rem' }}>
                     Term
                     <select value={newSem.name} onChange={e => setNewSem({...newSem, name: e.target.value})} style={{ display:'block', padding:'0.5rem', marginTop:'0.25rem', border:'1px solid var(--border)', borderRadius:6 }}>
-                      <option>Fall</option><option>Spring</option><option>Summer</option>
+                      <option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option>
+                      <option>Semester 5</option><option>Semester 6</option><option>Semester 7</option><option>Semester 8</option>
                     </select>
                   </label>
                   <label style={{ fontWeight:600, fontSize:'0.85rem' }}>
@@ -199,11 +229,32 @@ export default function AdminDashboard() {
       {tab === 'catalog' && (
         <div className="card">
           <div className="card-header">
-            <h2>Course Catalog</h2>
+            <h2>Course Catalog (Edit Credits, Codes, Syllabus)</h2>
             <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCourseForm(!showCourseForm)}>
               {showCourseForm ? 'Cancel' : '+ Add Course'}
             </button>
           </div>
+
+          {editingCourse && (
+            <div className="modal-overlay" onClick={() => setEditingCourse(null)}>
+              <div className="modal" onClick={e => e.stopPropagation()}>
+                <h3>✏️ Edit Course Details — {editingCourse.code}</h3>
+                <form onSubmit={saveCourseEdit} className="course-form" style={{ marginTop:'1rem' }}>
+                  <div className="form-grid">
+                    <label>Course Code<input value={editingCourse.code} onChange={e => setEditingCourse({...editingCourse, code:e.target.value})} required /></label>
+                    <label>Title<input value={editingCourse.title} onChange={e => setEditingCourse({...editingCourse, title:e.target.value})} required /></label>
+                    <label>Credits<input type="number" value={editingCourse.credits} onChange={e => setEditingCourse({...editingCourse, credits:Number(e.target.value)})} required min={1} /></label>
+                    <label>Min Prev Grade<input value={editingCourse.min_previous_grade || ''} onChange={e => setEditingCourse({...editingCourse, min_previous_grade:e.target.value})} placeholder="Optional e.g. B" /></label>
+                  </div>
+                  <label>Syllabus<textarea value={editingCourse.syllabus || ''} onChange={e => setEditingCourse({...editingCourse, syllabus:e.target.value})} rows={3} /></label>
+                  <div className="modal-actions">
+                    <button type="button" className="btn btn-outline" onClick={() => setEditingCourse(null)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary">Save Changes to Database</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           {showCourseForm && (
             <form onSubmit={createCourse} className="course-form">
@@ -235,7 +286,7 @@ export default function AdminDashboard() {
               <div key={deg.code} style={{ marginBottom:'1.5rem' }}>
                 <h3 style={{ color: deg.color, marginBottom:'0.5rem', fontSize:'1rem' }}>{deg.icon} {deg.label}</h3>
                 <table className="data-table">
-                  <thead><tr><th>Code</th><th>Title</th><th>Credits</th><th>Min Grade</th></tr></thead>
+                  <thead><tr><th>Code</th><th>Title</th><th>Credits</th><th>Min Grade</th><th>Action</th></tr></thead>
                   <tbody>
                     {degCourses.map(c => (
                       <tr key={c.id}>
@@ -243,6 +294,11 @@ export default function AdminDashboard() {
                         <td>{c.title}</td>
                         <td><span className="badge">{c.credits} cr</span></td>
                         <td>{c.min_previous_grade || '—'}</td>
+                        <td>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditingCourse(c)}>
+                            ✏️ Edit Course
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -287,21 +343,55 @@ export default function AdminDashboard() {
               <label>Capacity<input type="number" value={newSection.capacity} onChange={e => setNewSection({...newSection, capacity:e.target.value})} /></label>
               <label>Room<input value={newSection.room} onChange={e => setNewSection({...newSection, room:e.target.value})} placeholder="e.g. Room 101" /></label>
             </div>
-            <div style={{ marginBottom:'0.75rem' }}>
-              <strong style={{ fontSize:'0.875rem' }}>Schedule Slot</strong>
-              <div style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', flexWrap:'wrap' }}>
-                <select
-                  value={newSection.slots[0]?.day_of_week}
-                  onChange={e => setNewSection({...newSection, slots:[{...newSection.slots[0], day_of_week:Number(e.target.value)}]})}
-                  style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
-                >
-                  {DAYS.map((d,i) => <option key={i} value={i}>{d}</option>)}
-                </select>
-                <input type="time" value={newSection.slots[0]?.start_time} onChange={e => setNewSection({...newSection, slots:[{...newSection.slots[0], start_time:e.target.value}]})} style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }} />
-                <input type="time" value={newSection.slots[0]?.end_time} onChange={e => setNewSection({...newSection, slots:[{...newSection.slots[0], end_time:e.target.value}]})} style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }} />
+            <div style={{ marginBottom:'1rem' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.5rem' }}>
+                <strong style={{ fontSize:'0.875rem' }}>Schedule Days &amp; Timetable Slots ({newSection.slots.length} Days)</strong>
+                <button type="button" className="btn btn-outline btn-sm" onClick={addSlot}>
+                  + Add Another Day
+                </button>
               </div>
+              {newSection.slots.map((slot, index) => (
+                <div key={index} style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
+                  <select
+                    value={slot.day_of_week}
+                    onChange={e => {
+                      const updated = [...newSection.slots];
+                      updated[index].day_of_week = Number(e.target.value);
+                      setNewSection({...newSection, slots: updated});
+                    }}
+                    style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
+                  >
+                    {DAYS.map((d,i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
+                  <input
+                    type="time"
+                    value={slot.start_time}
+                    onChange={e => {
+                      const updated = [...newSection.slots];
+                      updated[index].start_time = e.target.value;
+                      setNewSection({...newSection, slots: updated});
+                    }}
+                    style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
+                  />
+                  <input
+                    type="time"
+                    value={slot.end_time}
+                    onChange={e => {
+                      const updated = [...newSection.slots];
+                      updated[index].end_time = e.target.value;
+                      setNewSection({...newSection, slots: updated});
+                    }}
+                    style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
+                  />
+                  {newSection.slots.length > 1 && (
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => removeSlot(index)}>
+                      ✕ Remove Day
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-            <button type="submit" className="btn btn-primary">Create Section</button>
+            <button type="submit" className="btn btn-primary">Create Section with Timetable</button>
           </form>
         </div>
       )}

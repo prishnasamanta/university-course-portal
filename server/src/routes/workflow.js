@@ -176,6 +176,52 @@ router.delete('/users/:userId', authRequired, requireRoles('admin', 'academic_st
   // Delete user from DB — CASCADE foreign keys cleanly purge student/instructor, enrollments, marks
   db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
   res.json({ ok: true, deleted_id: targetId });
+// PUT /api/workflow/courses/:courseId — Staff edits course details (code, title, credits, syllabus, etc.)
+router.put('/courses/:courseId', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const { code, title, credits, department, degree_level, min_previous_grade, syllabus } = req.body;
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.courseId);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  db.prepare(`
+    UPDATE courses
+    SET code = ?, title = ?, credits = ?, department = ?, degree_level = ?,
+        min_previous_grade = ?, syllabus = ?
+    WHERE id = ?
+  `).run(
+    code || course.code,
+    title || course.title,
+    credits != null ? Number(credits) : course.credits,
+    department || course.department,
+    degree_level || course.degree_level,
+    min_previous_grade !== undefined ? min_previous_grade : course.min_previous_grade,
+    syllabus !== undefined ? syllabus : course.syllabus,
+    course.id
+  );
+
+  res.json({ ok: true });
+});
+
+// POST /api/workflow/sections/:sectionId/timetable — Staff edits section room and multi-day schedule slots
+router.post('/sections/:sectionId/timetable', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const { room, slots } = req.body;
+  const section = db.prepare('SELECT * FROM sections WHERE id = ?').get(req.params.sectionId);
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+
+  if (room !== undefined) {
+    db.prepare('UPDATE sections SET room = ? WHERE id = ?').run(room, section.id);
+  }
+
+  if (Array.isArray(slots)) {
+    db.prepare('DELETE FROM section_schedule_slots WHERE section_id = ?').run(section.id);
+    const ins = db.prepare('INSERT INTO section_schedule_slots (section_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)');
+    for (const slot of slots) {
+      if (slot.day_of_week != null && slot.start_time && slot.end_time) {
+        ins.run(section.id, Number(slot.day_of_week), slot.start_time, slot.end_time);
+      }
+    }
+  }
+
+  res.json({ ok: true });
 });
 
 export default router;

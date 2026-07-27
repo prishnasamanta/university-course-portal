@@ -103,9 +103,11 @@ export const api = {
   getSectionExamRegistrations: (sectionId) =>
     request(`/workflow/sections/${sectionId}/exam-registrations`),
 
-  // User Management
+  // User & Course Management
   getUsers: () => request('/workflow/users'),
   deleteUser: (userId) => request(`/workflow/users/${userId}`, { method: 'DELETE' }),
+  updateCourse: (courseId, data) => request(`/workflow/courses/${courseId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  updateStaffSectionTimetable: (sectionId, data) => request(`/workflow/sections/${sectionId}/timetable`, { method: 'POST', body: JSON.stringify(data) }),
 
   // HOD workflow
   getDeptHeadCourses: () => request('/workflow/dept-head/courses'),
