@@ -22,11 +22,12 @@ export default function AdminDashboard() {
   const [examRequests, setExamRequests] = useState([]);
   const [workflowSections, setWorkflowSections] = useState([]);
   const [message, setMessage] = useState(null);
+  const [users, setUsers] = useState([]);
 
   // Semester tab state
   const [selectedDegree, setSelectedDegree] = useState(null);
   const [showSemForm, setShowSemForm] = useState(false);
-  const [newSem, setNewSem] = useState({ name: 'Spring', year: new Date().getFullYear() + 1 });
+  const [newSem, setNewSem] = useState({ name: 'Semester 1', year: new Date().getFullYear() + 1 });
 
   // Course catalog state
   const [showCourseForm, setShowCourseForm] = useState(false);
@@ -41,15 +42,18 @@ export default function AdminDashboard() {
     slots: [{ day_of_week: 1, start_time: '09:00', end_time: '11:00' }]
   });
 
+  // Course edit state
+  const [editingCourse, setEditingCourse] = useState(null);
+
   // Exam section detail
   const [examDetail, setExamDetail] = useState(null);
   const [examDetailRows, setExamDetailRows] = useState([]);
 
   // Workflow section detail
   const [wfSection, setWfSection] = useState(null);
-  const [users, setUsers] = useState([]);
   const [wfStudents, setWfStudents] = useState([]);
 
+  // ─── DATA LOADING ───
   const load = () => {
     Promise.all([
       api.getSemesters(), api.getCourses(), api.getInstructors(),
@@ -66,28 +70,51 @@ export default function AdminDashboard() {
 
   useEffect(() => { load(); }, []);
 
-  const deleteUserAcc = async (userId, name) => {
-    if (!window.confirm(`Are you sure you want to delete ${name}? This will purge them and all their records from the database via SQL CASCADE.`)) return;
+  // ─── FLASH MESSAGE ───
+  const flash = (type, text) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 4000);
+  };
+
+  // ─── SEMESTER HANDLERS ───
+  const createSemester = async (e) => {
+    e.preventDefault();
     try {
-      await api.deleteUser(userId);
-      flash('success', `User ${name} successfully deleted from database.`);
+      await api.createSemester(newSem);
+      flash('success', `Created semester ${newSem.name} ${newSem.year}`);
+      setShowSemForm(false);
       load();
     } catch (err) {
-      flash('danger', err.message);
+      flash('error', err.message);
     }
   };
 
-  const TABS = [
-    { id: 'semesters', label: '📅 Semesters' },
-    { id: 'catalog', label: '📚 Course Catalog' },
-    { id: 'sections', label: '📋 Create Section' },
-    { id: 'users', label: `👥 User Accounts (${users.length})` },
-    { id: 'exams', label: `📝 Exam Registration${examRequests.length ? ` (${examRequests.length})` : ''}` },
-    { id: 'workflow', label: '📊 Results Workflow' },
-  ];
+  const toggleReg = async (semId, currentlyOpen) => {
+    try {
+      await api.toggleRegistration(semId, currentlyOpen ? 0 : 1);
+      flash('success', currentlyOpen ? 'Registration closed' : 'Registration opened');
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
 
-  // Course edit state
-  const [editingCourse, setEditingCourse] = useState(null);
+  // ─── COURSE HANDLERS ───
+  const createCourse = async (e) => {
+    e.preventDefault();
+    try {
+      await api.createCourse(newCourse);
+      flash('success', `Course ${newCourse.code} created!`);
+      setShowCourseForm(false);
+      setNewCourse({
+        code: '', title: '', credits: 6, department: 'cs', degree_level: 'btech',
+        required_previous_degree: '', min_previous_grade: '', syllabus: '', prerequisite_ids: []
+      });
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
 
   const saveCourseEdit = async (e) => {
     e.preventDefault();
@@ -97,7 +124,23 @@ export default function AdminDashboard() {
       setEditingCourse(null);
       load();
     } catch (err) {
-      flash('danger', err.message);
+      flash('error', err.message);
+    }
+  };
+
+  // ─── SECTION HANDLERS ───
+  const createSection = async (e) => {
+    e.preventDefault();
+    try {
+      await api.createSection(newSection);
+      flash('success', 'Section created with timetable!');
+      setNewSection({
+        course_id: '', semester_id: '', section_code: 'A', instructor_id: '', capacity: 60, room: '',
+        slots: [{ day_of_week: 1, start_time: '09:00', end_time: '11:00' }]
+      });
+      load();
+    } catch (err) {
+      flash('error', err.message);
     }
   };
 
@@ -114,6 +157,81 @@ export default function AdminDashboard() {
       slots: s.slots.filter((_, i) => i !== index)
     }));
   };
+
+  // ─── EXAM REGISTRATION HANDLERS ───
+  const openExamReg = async (sectionId) => {
+    try {
+      await api.openExamReg(sectionId);
+      flash('success', 'Exam registration opened for students!');
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
+  const closeExamReg = async (sectionId) => {
+    try {
+      await api.closeExamReg(sectionId);
+      flash('success', 'Exam registration closed.');
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
+  const loadExamDetail = async (sectionId) => {
+    if (sectionId === null || sectionId === examDetail) {
+      setExamDetail(null);
+      setExamDetailRows([]);
+      return;
+    }
+    setExamDetail(sectionId);
+    try {
+      const rows = await api.getSectionExamRegistrations(sectionId);
+      setExamDetailRows(rows);
+    } catch {
+      setExamDetailRows([]);
+    }
+  };
+
+  // ─── WORKFLOW HANDLERS ───
+  const loadWfDetail = async (sectionId) => {
+    if (wfSection?.id === sectionId) {
+      setWfSection(null);
+      setWfStudents([]);
+      return;
+    }
+    try {
+      const data = await api.getWorkflowSectionResults(sectionId);
+      setWfSection(data.section);
+      setWfStudents(data.students || []);
+    } catch {
+      setWfSection(null);
+      setWfStudents([]);
+    }
+  };
+
+  // ─── USER MANAGEMENT HANDLER ───
+  const deleteUserAcc = async (userId, name) => {
+    if (!window.confirm(`Are you sure you want to delete ${name}? This will purge them and all their records from the database via SQL CASCADE.`)) return;
+    try {
+      await api.deleteUser(userId);
+      flash('success', `User ${name} successfully deleted from database.`);
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
+  // ─── TABS CONFIG ───
+  const TABS = [
+    { id: 'semesters', label: '📅 Semesters' },
+    { id: 'catalog', label: '📚 Course Catalog' },
+    { id: 'sections', label: '📋 Create Section' },
+    { id: 'users', label: `👥 User Accounts (${users.length})` },
+    { id: 'exams', label: `📝 Exam Registration${examRequests.length ? ` (${examRequests.length})` : ''}` },
+    { id: 'workflow', label: '📊 Results Workflow' },
+  ];
 
   return (
     <div>
@@ -227,119 +345,126 @@ export default function AdminDashboard() {
 
       {/* ===== COURSE CATALOG TAB ===== */}
       {tab === 'catalog' && (
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <h2>Course Catalog {selectedDegree ? `— ${selectedDegree.label}` : '(All Programs)'}</h2>
-              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                View and edit course details, credit points, assigned teachers, and multi-day timetables.
-              </p>
-            </div>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCourseForm(!showCourseForm)}>
-              {showCourseForm ? 'Cancel' : '+ Add Course from Scratch'}
+        <div>
+          {/* Degree tiles for filtering */}
+          <div className="degree-tiles" style={{ marginBottom: '1rem' }}>
+            <button
+              type="button"
+              className={`degree-tile ${!selectedDegree ? 'selected' : ''}`}
+              onClick={() => setSelectedDegree(null)}
+            >
+              <span className="degree-tile-icon">🌐</span>
+              <span className="degree-tile-label">All Courses</span>
             </button>
+            {DEGREE_TILES.map(deg => {
+              const count = courses.filter(c => c.degree_level === deg.level && c.department === deg.dept).length;
+              return (
+                <button
+                  key={deg.code}
+                  type="button"
+                  className={`degree-tile ${selectedDegree?.code === deg.code ? 'selected' : ''}`}
+                  style={{ '--tile-color': deg.color }}
+                  onClick={() => setSelectedDegree(deg)}
+                >
+                  <span className="degree-tile-icon">{deg.icon}</span>
+                  <span className="degree-tile-label">{deg.label} ({count})</span>
+                </button>
+              );
+            })}
           </div>
 
-          {editingCourse && (
-            <div className="modal-overlay" onClick={() => setEditingCourse(null)}>
-              <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 550, width: '90%' }}>
-                <h3>✏️ Edit Course Details — {editingCourse.code}</h3>
-                <form onSubmit={saveCourseEdit} className="course-form" style={{ marginTop:'1rem' }}>
-                  <div className="form-grid">
-                    <label>Course Code<input value={editingCourse.code} onChange={e => setEditingCourse({...editingCourse, code:e.target.value})} required /></label>
-                    <label>Title<input value={editingCourse.title} onChange={e => setEditingCourse({...editingCourse, title:e.target.value})} required /></label>
-                    <label>Credits<input type="number" value={editingCourse.credits} onChange={e => setEditingCourse({...editingCourse, credits:Number(e.target.value)})} required min={1} /></label>
-                    <label>Min Prev Grade<input value={editingCourse.min_previous_grade || ''} onChange={e => setEditingCourse({...editingCourse, min_previous_grade:e.target.value})} placeholder="Optional e.g. B" /></label>
-                  </div>
-                  <label>Syllabus<textarea value={editingCourse.syllabus || ''} onChange={e => setEditingCourse({...editingCourse, syllabus:e.target.value})} rows={3} /></label>
-                  <div className="modal-actions">
-                    <button type="button" className="btn btn-outline" onClick={() => setEditingCourse(null)}>Cancel</button>
-                    <button type="submit" className="btn btn-primary">Save Course Details</button>
-                  </div>
-                </form>
-              </div>
+          <div className="card">
+            <div className="card-header">
+              <h2>{selectedDegree ? `${selectedDegree.icon} ${selectedDegree.label} — Courses` : '📚 All Courses'}</h2>
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCourseForm(!showCourseForm)}>
+                {showCourseForm ? 'Cancel' : '+ Add New Course'}
+              </button>
             </div>
-          )}
 
-          {showCourseForm && (
-            <form onSubmit={createCourse} className="course-form" style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: 8, margin: '1rem 0' }}>
-              <h3 style={{ marginTop: 0 }}>+ Create New Course from Scratch</h3>
-              <div className="form-grid">
-                <label>Code<input value={newCourse.code} onChange={e => setNewCourse({...newCourse, code:e.target.value})} required placeholder="CS104" /></label>
-                <label>Title<input value={newCourse.title} onChange={e => setNewCourse({...newCourse, title:e.target.value})} required placeholder="Operating Systems" /></label>
-                <label>Credits<input type="number" value={newCourse.credits} onChange={e => setNewCourse({...newCourse, credits:e.target.value})} required min={1} /></label>
-                <label>Department
-                  <select value={newCourse.department} onChange={e => setNewCourse({...newCourse, department:e.target.value})}>
-                    {DEPTS.map(d => <option key={d} value={d}>{d.toUpperCase()}</option>)}
-                  </select>
-                </label>
-                <label>Degree Level
-                  <select value={newCourse.degree_level} onChange={e => setNewCourse({...newCourse, degree_level:e.target.value})}>
-                    {LEVELS.map(l => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
-                  </select>
-                </label>
-                <label>Min Prev Grade<input value={newCourse.min_previous_grade} onChange={e => setNewCourse({...newCourse, min_previous_grade:e.target.value})} placeholder="Optional e.g. B" /></label>
+            {/* Edit course modal */}
+            {editingCourse && (
+              <div className="modal-overlay" style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }} onClick={() => setEditingCourse(null)}>
+                <div className="modal-content card" style={{ maxWidth:550, width:'95%', padding:'1.75rem' }} onClick={e => e.stopPropagation()}>
+                  <h3 style={{ margin:'0 0 1rem' }}>✏️ Edit Course — {editingCourse.code}</h3>
+                  <form onSubmit={saveCourseEdit}>
+                    <div className="form-grid">
+                      <label>Course Code<input value={editingCourse.code} onChange={e => setEditingCourse({...editingCourse, code:e.target.value})} required /></label>
+                      <label>Title<input value={editingCourse.title} onChange={e => setEditingCourse({...editingCourse, title:e.target.value})} required /></label>
+                      <label>Credits<input type="number" value={editingCourse.credits} onChange={e => setEditingCourse({...editingCourse, credits:Number(e.target.value)})} required min={1} /></label>
+                      <label>Min Prev Grade<input value={editingCourse.min_previous_grade || ''} onChange={e => setEditingCourse({...editingCourse, min_previous_grade:e.target.value})} placeholder="Optional e.g. B" /></label>
+                    </div>
+                    <label>Syllabus<textarea value={editingCourse.syllabus || ''} onChange={e => setEditingCourse({...editingCourse, syllabus:e.target.value})} rows={3} /></label>
+                    <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.75rem', marginTop:'1rem' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setEditingCourse(null)}>Cancel</button>
+                      <button type="submit" className="btn btn-primary">Save Changes</button>
+                    </div>
+                  </form>
+                </div>
               </div>
-              <label>Syllabus<textarea value={newCourse.syllabus} onChange={e => setNewCourse({...newCourse, syllabus:e.target.value})} rows={2} /></label>
-              <button type="submit" className="btn btn-primary">Create Course</button>
-            </form>
-          )}
+            )}
 
-          {DEGREE_TILES.map(deg => {
-            if (selectedDegree && selectedDegree.code !== deg.code) return null;
-            const degCourses = courses.filter(c => c.degree_level === deg.level && c.department === deg.dept);
-            if (degCourses.length === 0) return null;
-            return (
-              <div key={deg.code} style={{ marginBottom:'2rem' }}>
-                <h3 style={{ color: deg.color, marginBottom:'0.75rem', fontSize:'1.1rem', display:'flex', alignItems:'center', gap:'0.5rem' }}>
-                  <span>{deg.icon}</span>
-                  <span>{deg.label}</span>
-                </h3>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Code</th>
-                      <th>Course Title</th>
-                      <th>Credits</th>
-                      <th>Assigned Teacher</th>
-                      <th>Timetable Slots</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {degCourses.map(c => {
-                      const cSecs = workflowSections.filter(s => s.course_code === c.code || s.course_id === c.id);
-                      const instNames = cSecs.map(s => s.instructor_name).filter(Boolean);
-                      const teacherDisplay = instNames.length > 0 ? instNames.join(', ') : 'Not assigned';
+            {/* Add new course form */}
+            {showCourseForm && (
+              <form onSubmit={createCourse} className="course-form" style={{ marginBottom:'1.5rem', padding:'1rem', background:'var(--surface)', borderRadius:8 }}>
+                <div className="form-grid">
+                  <label>Code<input value={newCourse.code} onChange={e => setNewCourse({...newCourse, code:e.target.value})} required placeholder="CS104" /></label>
+                  <label>Title<input value={newCourse.title} onChange={e => setNewCourse({...newCourse, title:e.target.value})} required placeholder="Operating Systems" /></label>
+                  <label>Credits<input type="number" value={newCourse.credits} onChange={e => setNewCourse({...newCourse, credits:e.target.value})} required min={1} /></label>
+                  <label>Department
+                    <select value={newCourse.department} onChange={e => setNewCourse({...newCourse, department:e.target.value})}>
+                      {DEPTS.map(d => <option key={d} value={d}>{d.toUpperCase()}</option>)}
+                    </select>
+                  </label>
+                  <label>Degree Level
+                    <select value={newCourse.degree_level} onChange={e => setNewCourse({...newCourse, degree_level:e.target.value})}>
+                      {LEVELS.map(l => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
+                    </select>
+                  </label>
+                  <label>Min Prev Grade<input value={newCourse.min_previous_grade} onChange={e => setNewCourse({...newCourse, min_previous_grade:e.target.value})} placeholder="Optional e.g. B" /></label>
+                </div>
+                <label>Syllabus<textarea value={newCourse.syllabus} onChange={e => setNewCourse({...newCourse, syllabus:e.target.value})} rows={3} /></label>
+                <button type="submit" className="btn btn-primary" style={{ marginTop:'0.75rem' }}>Add Course to Database</button>
+              </form>
+            )}
 
-                      return (
+            {/* Courses grouped by degree */}
+            {(selectedDegree ? [selectedDegree] : DEGREE_TILES).map(deg => {
+              const degCourses = courses.filter(c => c.degree_level === deg.level && c.department === deg.dept);
+              if (degCourses.length === 0 && selectedDegree) {
+                return (
+                  <div key={deg.code} style={{ textAlign:'center', padding:'2rem', color:'var(--muted)' }}>
+                    <p>No courses found for {deg.label}. Use the <strong>+ Add New Course</strong> button above to create one.</p>
+                  </div>
+                );
+              }
+              if (degCourses.length === 0) return null;
+              return (
+                <div key={deg.code} style={{ marginBottom:'1.5rem' }}>
+                  <h3 style={{ color: deg.color, marginBottom:'0.5rem', fontSize:'1rem', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <span>{deg.icon}</span> <span>{deg.label}</span>
+                  </h3>
+                  <table className="data-table">
+                    <thead><tr><th>Code</th><th>Title</th><th>Credits</th><th>Min Grade</th><th>Actions</th></tr></thead>
+                    <tbody>
+                      {degCourses.map(c => (
                         <tr key={c.id}>
                           <td><strong>{c.code}</strong></td>
                           <td>{c.title}</td>
                           <td><span className="badge">{c.credits} cr</span></td>
+                          <td>{c.min_previous_grade || '—'}</td>
                           <td>
-                            <span className={instNames.length > 0 ? 'badge success' : 'badge'}>
-                              👨‍🏫 {teacherDisplay}
-                            </span>
-                          </td>
-                          <td>
-                            <small className="muted">
-                              {cSecs.length > 0 ? `Section ${cSecs[0].section_code}` : 'A'}
-                            </small>
-                          </td>
-                          <td className="actions">
-                            <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditingCourse(c)}>
-                              ✏️ Edit Details
+                            <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditingCourse({...c})}>
+                              ✏️ Edit Course
                             </button>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
