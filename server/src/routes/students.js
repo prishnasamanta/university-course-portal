@@ -17,24 +17,43 @@ const router = Router();
 
 
 router.post('/profile/student', authRequired, requireRoles('student'), (req, res) => {
-  let student = getStudentByUserId(req.user.id);
-  if (!student) return res.status(404).json({ error: 'Student profile not found' });
-
+  const userId = req.user.id;
   const { name, email, program_id, previous_degree, previous_grade, current_semester_id } = req.body;
 
   if (!name || !previous_degree || !previous_grade || !current_semester_id) {
     return res.status(400).json({ error: 'All profile fields are required' });
   }
 
-  db.prepare('UPDATE users SET name = ?, email = ? WHERE id = ?').run(name, email || req.user.email, req.user.id);
+  // 1. Ensure user row exists in users table (SQLite)
+  let userRow = db.prepare('SELECT * FROM users WHERE id = ? OR email = ?').get(userId, req.user.email);
+  if (!userRow) {
+    db.prepare('INSERT OR IGNORE INTO users (id, name, email, role, password_hash) VALUES (?, ?, ?, ?, ?)')
+      .run(userId, name, email || req.user.email, 'student', '$2a$10$7R4/t39m9F5B2Kx4eG3O/uGg0p8Z2b6w8m.x9/b7i5j3k1l2m3n4o');
+    userRow = db.prepare('SELECT * FROM users WHERE id = ? OR email = ?').get(userId, req.user.email);
+  } else {
+    db.prepare('UPDATE users SET name = ?, email = ? WHERE id = ?').run(name, email || req.user.email, userRow.id);
+  }
 
-  const progId = program_id ? Number(program_id) : student.program_id || 1;
+  const targetUserId = userRow ? userRow.id : userId;
+  const progId = program_id ? Number(program_id) : 1;
+  const semId = Number(current_semester_id);
 
-  db.prepare(`
-    UPDATE students SET program_id = ?, previous_degree = ?, previous_grade = ?, current_semester_id = ?,
-      profile_completed = 1
-    WHERE id = ?
-  `).run(progId, previous_degree, previous_grade, Number(current_semester_id), student.id);
+  // 2. Check if student row exists
+  let student = db.prepare('SELECT * FROM students WHERE user_id = ?').get(targetUserId);
+
+  if (student) {
+    db.prepare(`
+      UPDATE students
+      SET program_id = ?, previous_degree = ?, previous_grade = ?, current_semester_id = ?, profile_completed = 1
+      WHERE id = ?
+    `).run(progId, previous_degree, previous_grade, semId, student.id);
+  } else {
+    const rollNo = `STU${Date.now().toString().slice(-6)}`;
+    db.prepare(`
+      INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id)
+      VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+    `).run(targetUserId, progId, new Date().getFullYear(), rollNo, previous_degree, previous_grade, semId);
+  }
 
   res.json({ ok: true });
 });
