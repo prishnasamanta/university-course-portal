@@ -198,3 +198,105 @@ INSERT OR IGNORE INTO grading_policy (letter_grade, min_percent, grade_point) VA
   ('B', 50, 6),
   ('C', 40, 5),
   ('F', 0, 0);
+
+-- ====================================================
+-- SQL VIEWS FOR PURE DATABASE QUERY EXECUTION
+-- ====================================================
+
+-- 1. SQL View: Student Timetables
+CREATE VIEW IF NOT EXISTS v_student_timetables AS
+SELECT e.student_id, e.id AS enrollment_id, e.section_id,
+       c.code AS course_code, c.title AS course_title,
+       s.section_code, s.room,
+       ss.id AS slot_id, ss.day_of_week, ss.start_time, ss.end_time
+FROM enrollments e
+JOIN section_schedule_slots ss ON ss.id = e.chosen_slot_id
+JOIN sections s ON s.id = e.section_id
+JOIN courses c ON c.id = s.course_id
+WHERE e.status = 'registered';
+
+-- 2. SQL View: Timetable Clashes
+CREATE VIEW IF NOT EXISTS v_timetable_clashes AS
+SELECT t1.student_id,
+       t1.course_code AS course1_code, t1.start_time AS course1_start, t1.end_time AS course1_end,
+       t2.course_code AS course2_code, t2.start_time AS course2_start, t2.end_time AS course2_end,
+       t1.day_of_week
+FROM v_student_timetables t1
+JOIN v_student_timetables t2 ON t1.student_id = t2.student_id
+                            AND t1.enrollment_id != t2.enrollment_id
+                            AND t1.day_of_week = t2.day_of_week
+                            AND t1.start_time < t2.end_time
+                            AND t2.start_time < t1.end_time;
+
+-- 3. SQL View: Section Capacity Status
+CREATE VIEW IF NOT EXISTS v_section_capacity_status AS
+SELECT s.id AS section_id, s.course_id, s.semester_id, s.capacity,
+       COUNT(e.id) AS enrolled_count,
+       (s.capacity - COUNT(e.id)) AS seats_remaining,
+       CASE WHEN COUNT(e.id) >= s.capacity THEN 1 ELSE 0 END AS is_full
+FROM sections s
+LEFT JOIN enrollments e ON e.section_id = s.id AND e.status = 'registered'
+GROUP BY s.id;
+
+-- 4. SQL View: Automatic Grade & Grade Point Computation
+CREATE VIEW IF NOT EXISTS v_student_grades AS
+SELECT e.id AS enrollment_id, e.student_id, s.semester_id, c.id AS course_id, c.code AS course_code, c.credits,
+       cr.marks,
+       gp.letter_grade,
+       gp.grade_point,
+       (gp.grade_point * c.credits) AS credit_points,
+       rw.status AS workflow_status
+FROM enrollments e
+JOIN sections s ON s.id = e.section_id
+JOIN courses c ON c.id = s.course_id
+LEFT JOIN course_results cr ON cr.enrollment_id = e.id
+LEFT JOIN result_workflow rw ON rw.enrollment_id = e.id
+LEFT JOIN grading_policy gp ON cr.marks >= gp.min_percent
+                          AND gp.min_percent = (
+                            SELECT MAX(min_percent)
+                            FROM grading_policy
+                            WHERE cr.marks >= min_percent
+                          );
+
+-- 5. SQL View: Semester GPA (SGPA) Computation
+CREATE VIEW IF NOT EXISTS v_student_sgpa AS
+SELECT student_id, semester_id,
+       SUM(credits) AS total_credits,
+       SUM(credit_points) AS total_credit_points,
+       ROUND(SUM(credit_points) / SUM(credits), 2) AS sgpa
+FROM v_student_grades
+WHERE workflow_status = 'published' AND grade_point IS NOT NULL
+GROUP BY student_id, semester_id;
+
+-- 6. SQL View: Cumulative GPA (CGPA) Computation
+CREATE VIEW IF NOT EXISTS v_student_cgpa AS
+SELECT student_id,
+       SUM(credits) AS total_cumulative_credits,
+       SUM(credit_points) AS total_cumulative_points,
+       ROUND(SUM(credit_points) / SUM(credits), 2) AS cgpa
+FROM v_student_grades
+WHERE workflow_status = 'published' AND grade_point IS NOT NULL
+GROUP BY student_id;
+
+-- 7. SQL View: Mark Edit Audit Trail Log
+CREATE VIEW IF NOT EXISTS v_mark_audit_trail AS
+SELECT m.id AS revision_id, m.mark_id, m.old_value, m.new_value, m.reason, m.status,
+       u.name AS requested_by_name, r.name AS reviewed_by_name, m.created_at
+FROM marks_revision_requests m
+JOIN users u ON u.id = m.requested_by
+LEFT JOIN users r ON r.id = m.reviewed_by;
+
+-- ====================================================
+-- SQL TRIGGERS FOR DATABASE AUDIT TRAIL & CONSTRAINTS
+-- ====================================================
+
+-- Trigger: Audit Trail logging on course_results update
+CREATE TRIGGER IF NOT EXISTS trg_audit_course_results_update
+AFTER UPDATE OF marks ON course_results
+FOR EACH ROW
+WHEN OLD.marks IS NOT NULL AND OLD.marks != NEW.marks
+BEGIN
+  INSERT INTO marks_revision_requests (mark_id, requested_by, reason, old_value, new_value, status, created_at)
+  VALUES (NEW.enrollment_id, NEW.entered_by, 'Instructor modified marks', OLD.marks, NEW.marks, 'approved', datetime('now'));
+END;
+
