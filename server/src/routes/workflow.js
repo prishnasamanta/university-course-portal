@@ -149,6 +149,9 @@ router.get('/sections/:sectionId/exam-registrations', authRequired, requireRoles
     WHERE e.section_id = ? AND e.status = 'registered'
     ORDER BY st.roll_number
   `).all(req.params.sectionId);
+  res.json(enrolled);
+});
+
 // GET /api/workflow/users — Admin/Staff lists all database users
 router.get('/users', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
   const users = db.prepare(`
@@ -176,6 +179,8 @@ router.delete('/users/:userId', authRequired, requireRoles('admin', 'academic_st
   // Delete user from DB — CASCADE foreign keys cleanly purge student/instructor, enrollments, marks
   db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
   res.json({ ok: true, deleted_id: targetId });
+});
+
 // PUT /api/workflow/courses/:courseId — Staff edits course details (code, title, credits, syllabus, etc.)
 router.put('/courses/:courseId', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
   const { code, title, credits, department, degree_level, min_previous_grade, syllabus } = req.body;
