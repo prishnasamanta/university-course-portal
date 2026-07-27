@@ -29,11 +29,11 @@ function syncToPostgres(sql, params = []) {
   try {
     const pgSql = convertSqlForPostgres(sql);
     pool.query(pgSql, params)
-      .then(() => {
-        console.log(`[PostgreSQL Sync OK]: ${pgSql.slice(0, 60)}...`);
+      .then((res) => {
+        console.log(`[PostgreSQL Live Write SUCCESS]: (${res.rowCount} row(s) updated) | SQL: ${pgSql.slice(0, 80)}`);
       })
       .catch((err) => {
-        console.warn(`[PostgreSQL Sync Notice]: ${err.message}`);
+        console.warn(`[PostgreSQL Live Write Notice]: ${err.message} | SQL: ${pgSql.slice(0, 80)}`);
       });
   } catch (e) {}
 }
