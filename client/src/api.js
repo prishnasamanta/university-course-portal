@@ -26,9 +26,10 @@ export const api = {
     request('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password, role }) }),
   me: () => request('/auth/me'),
 
-  // Student profile
+  // Student profile & results
   saveStudentProfile: (data) =>
     request('/profile/student', { method: 'POST', body: JSON.stringify(data) }),
+  getMyResults: () => request('/my-results'),
   saveInstructorProfile: (preferences) =>
     request('/instructor/profile', { method: 'POST', body: JSON.stringify({ preferences }) }),
   getInstructorAvailableCourses: () => request('/instructor/available-courses'),

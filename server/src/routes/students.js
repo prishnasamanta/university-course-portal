@@ -265,6 +265,31 @@ router.get('/students/:studentId', authRequired, requireRoles('admin', 'academic
 
 
 
+// GET /api/my-results — Student views their enrolled course results & workflow status
+router.get('/my-results', authRequired, requireRoles('student'), (req, res) => {
+  const student = getStudentByUserId(req.user.id);
+  if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+  const rows = db.prepare(`
+    SELECT e.id AS enrollment_id, c.code AS course_code, c.title AS course_title, c.credits,
+           sem.name AS semester_name, sem.year,
+           cr.marks AS total_percent, eg.letter_grade, eg.grade_point,
+           rw.status AS workflow_status, er.id AS exam_registered_id
+    FROM enrollments e
+    JOIN sections s ON s.id = e.section_id
+    JOIN courses c ON c.id = s.course_id
+    JOIN semesters sem ON sem.id = s.semester_id
+    LEFT JOIN exam_registrations er ON er.enrollment_id = e.id
+    LEFT JOIN course_results cr ON cr.enrollment_id = e.id
+    LEFT JOIN enrollment_grades eg ON eg.enrollment_id = e.id
+    LEFT JOIN result_workflow rw ON rw.enrollment_id = e.id
+    WHERE e.student_id = ?
+    ORDER BY sem.year DESC, c.code
+  `).all(student.id);
+
+  res.json(rows);
+});
+
 router.post('/register/validate', authRequired, requireRoles('student'), (req, res) => {
 
   const student = getStudentByUserId(req.user.id);
