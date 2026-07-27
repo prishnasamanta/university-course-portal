@@ -206,14 +206,18 @@ router.put('/courses/:courseId', authRequired, requireRoles('academic_staff', 'a
   res.json({ ok: true });
 });
 
-// POST /api/workflow/sections/:sectionId/timetable — Staff edits section room and multi-day schedule slots
+// POST /api/workflow/sections/:sectionId/timetable — Staff edits section room, teacher, and schedule slots
 router.post('/sections/:sectionId/timetable', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
-  const { room, slots } = req.body;
+  const { room, slots, instructor_id } = req.body;
   const section = db.prepare('SELECT * FROM sections WHERE id = ?').get(req.params.sectionId);
   if (!section) return res.status(404).json({ error: 'Section not found' });
 
   if (room !== undefined) {
     db.prepare('UPDATE sections SET room = ? WHERE id = ?').run(room, section.id);
+  }
+
+  if (instructor_id !== undefined) {
+    db.prepare('UPDATE sections SET instructor_id = ? WHERE id = ?').run(instructor_id ? Number(instructor_id) : null, section.id);
   }
 
   if (Array.isArray(slots)) {

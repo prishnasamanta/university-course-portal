@@ -229,15 +229,20 @@ export default function AdminDashboard() {
       {tab === 'catalog' && (
         <div className="card">
           <div className="card-header">
-            <h2>Course Catalog (Edit Credits, Codes, Syllabus)</h2>
+            <div>
+              <h2>Course Catalog {selectedDegree ? `— ${selectedDegree.label}` : '(All Programs)'}</h2>
+              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                View and edit course details, credit points, assigned teachers, and multi-day timetables.
+              </p>
+            </div>
             <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCourseForm(!showCourseForm)}>
-              {showCourseForm ? 'Cancel' : '+ Add Course'}
+              {showCourseForm ? 'Cancel' : '+ Add Course from Scratch'}
             </button>
           </div>
 
           {editingCourse && (
             <div className="modal-overlay" onClick={() => setEditingCourse(null)}>
-              <div className="modal" onClick={e => e.stopPropagation()}>
+              <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 550, width: '90%' }}>
                 <h3>✏️ Edit Course Details — {editingCourse.code}</h3>
                 <form onSubmit={saveCourseEdit} className="course-form" style={{ marginTop:'1rem' }}>
                   <div className="form-grid">
@@ -249,7 +254,7 @@ export default function AdminDashboard() {
                   <label>Syllabus<textarea value={editingCourse.syllabus || ''} onChange={e => setEditingCourse({...editingCourse, syllabus:e.target.value})} rows={3} /></label>
                   <div className="modal-actions">
                     <button type="button" className="btn btn-outline" onClick={() => setEditingCourse(null)}>Cancel</button>
-                    <button type="submit" className="btn btn-primary">Save Changes to Database</button>
+                    <button type="submit" className="btn btn-primary">Save Course Details</button>
                   </div>
                 </form>
               </div>
@@ -257,7 +262,8 @@ export default function AdminDashboard() {
           )}
 
           {showCourseForm && (
-            <form onSubmit={createCourse} className="course-form">
+            <form onSubmit={createCourse} className="course-form" style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: 8, margin: '1rem 0' }}>
+              <h3 style={{ marginTop: 0 }}>+ Create New Course from Scratch</h3>
               <div className="form-grid">
                 <label>Code<input value={newCourse.code} onChange={e => setNewCourse({...newCourse, code:e.target.value})} required placeholder="CS104" /></label>
                 <label>Title<input value={newCourse.title} onChange={e => setNewCourse({...newCourse, title:e.target.value})} required placeholder="Operating Systems" /></label>
@@ -274,33 +280,61 @@ export default function AdminDashboard() {
                 </label>
                 <label>Min Prev Grade<input value={newCourse.min_previous_grade} onChange={e => setNewCourse({...newCourse, min_previous_grade:e.target.value})} placeholder="Optional e.g. B" /></label>
               </div>
-              <label>Syllabus<textarea value={newCourse.syllabus} onChange={e => setNewCourse({...newCourse, syllabus:e.target.value})} rows={3} /></label>
-              <button type="submit" className="btn btn-primary">Add Course</button>
+              <label>Syllabus<textarea value={newCourse.syllabus} onChange={e => setNewCourse({...newCourse, syllabus:e.target.value})} rows={2} /></label>
+              <button type="submit" className="btn btn-primary">Create Course</button>
             </form>
           )}
 
           {DEGREE_TILES.map(deg => {
+            if (selectedDegree && selectedDegree.code !== deg.code) return null;
             const degCourses = courses.filter(c => c.degree_level === deg.level && c.department === deg.dept);
             if (degCourses.length === 0) return null;
             return (
-              <div key={deg.code} style={{ marginBottom:'1.5rem' }}>
-                <h3 style={{ color: deg.color, marginBottom:'0.5rem', fontSize:'1rem' }}>{deg.icon} {deg.label}</h3>
+              <div key={deg.code} style={{ marginBottom:'2rem' }}>
+                <h3 style={{ color: deg.color, marginBottom:'0.75rem', fontSize:'1.1rem', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                  <span>{deg.icon}</span>
+                  <span>{deg.label}</span>
+                </h3>
                 <table className="data-table">
-                  <thead><tr><th>Code</th><th>Title</th><th>Credits</th><th>Min Grade</th><th>Action</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Course Title</th>
+                      <th>Credits</th>
+                      <th>Assigned Teacher</th>
+                      <th>Timetable Slots</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    {degCourses.map(c => (
-                      <tr key={c.id}>
-                        <td><strong>{c.code}</strong></td>
-                        <td>{c.title}</td>
-                        <td><span className="badge">{c.credits} cr</span></td>
-                        <td>{c.min_previous_grade || '—'}</td>
-                        <td>
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditingCourse(c)}>
-                            ✏️ Edit Course
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {degCourses.map(c => {
+                      const cSecs = workflowSections.filter(s => s.course_code === c.code || s.course_id === c.id);
+                      const instNames = cSecs.map(s => s.instructor_name).filter(Boolean);
+                      const teacherDisplay = instNames.length > 0 ? instNames.join(', ') : 'Not assigned';
+
+                      return (
+                        <tr key={c.id}>
+                          <td><strong>{c.code}</strong></td>
+                          <td>{c.title}</td>
+                          <td><span className="badge">{c.credits} cr</span></td>
+                          <td>
+                            <span className={instNames.length > 0 ? 'badge success' : 'badge'}>
+                              👨‍🏫 {teacherDisplay}
+                            </span>
+                          </td>
+                          <td>
+                            <small className="muted">
+                              {cSecs.length > 0 ? `Section ${cSecs[0].section_code}` : 'A'}
+                            </small>
+                          </td>
+                          <td className="actions">
+                            <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditingCourse(c)}>
+                              ✏️ Edit Details
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
