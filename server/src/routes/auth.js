@@ -108,81 +108,58 @@ router.post('/register', async (req, res) => {
     }
 
     const password_hash = bcrypt.hashSync(password, 10);
-    const newId = `user_${Date.now()}`;
+    const db = await getDb();
+
+    // 1. Insert into local SQLite database first to obtain authoritative INTEGER ID
+    const result = db.prepare('INSERT INTO users (name, email, role, password_hash) VALUES (?, ?, ?, ?)')
+      .run(name, email, role, password_hash);
+    const numericId = result.lastInsertRowid;
+
+    if (role === 'student') {
+      const defaultProgram = db.prepare('SELECT id FROM programs LIMIT 1').get()?.id || 1;
+      const rollNo = `STU${numericId}${Math.floor(Math.random() * 1000)}`;
+      db.prepare(`
+        INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
+        VALUES (?, ?, ?, ?, 0)
+      `).run(numericId, defaultProgram, new Date().getFullYear(), rollNo);
+    } else if (role === 'instructor') {
+      const empId = `EMP${numericId}${Math.floor(Math.random() * 1000)}`;
+      db.prepare(`
+        INSERT INTO instructors (user_id, department, employee_id, profile_completed)
+        VALUES (?, ?, ?, 0)
+      `).run(numericId, 'Computer Science', empId);
+    }
 
     const newUser = {
-      id: newId,
+      id: numericId,
       name,
       email,
-      role,
-      password_hash,
-      created_at: new Date().toISOString()
+      role
     };
 
-    // Save to Firestore if available
-    let savedToFirestore = false;
+    // 2. Save to Firestore asynchronously if available
     try {
       const firestore = getFirestoreDb();
       if (firestore) {
-        await firestore.collection('users').doc(newId).set(newUser);
-
-        // Create role-specific profile doc
-        if (role === 'student') {
-          await firestore.collection('students').doc(newId).set({
-            user_id: newId,
-            profile_completed: 0,
-            previous_degree: '',
-            previous_grade: '',
-            current_semester_id: null,
-            created_at: new Date().toISOString()
-          });
-        } else if (role === 'instructor') {
-          await firestore.collection('instructors').doc(newId).set({
-            user_id: newId,
-            profile_completed: 0,
-            department: '',
-            created_at: new Date().toISOString()
-          });
-        }
-        savedToFirestore = true;
+        await firestore.collection('users').doc(String(numericId)).set({
+          ...newUser,
+          password_hash,
+          created_at: new Date().toISOString()
+        });
       }
     } catch (err) {
       console.warn('[Register Firestore Warning]:', err.message);
     }
 
-    // Always save to local database for fast queries
-    try {
-      const db = await getDb();
-      db.prepare('INSERT INTO users (id, name, email, role, password_hash) VALUES (?, ?, ?, ?, ?)')
-        .run(newId, name, email, role, password_hash);
-
-      if (role === 'student') {
-        const defaultProgram = db.prepare('SELECT id FROM programs LIMIT 1').get()?.id || 1;
-        const rollNo = `STU${Date.now().toString().slice(-6)}`;
-        db.prepare(`
-          INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
-          VALUES (?, ?, ?, ?, 0)
-        `).run(newId, defaultProgram, new Date().getFullYear(), rollNo);
-      } else if (role === 'instructor') {
-        const empId = `EMP${Date.now().toString().slice(-6)}`;
-        db.prepare(`
-          INSERT INTO instructors (user_id, department, employee_id, profile_completed)
-          VALUES (?, ?, ?, 0)
-        `).run(newId, 'Computer Science', empId);
-      }
-    } catch (err) {
-      console.warn('[Register DB Warning]:', err.message);
-    }
-
-    const token = signToken({ ...newUser, id: newId });
+    const token = signToken(newUser);
     res.status(201).json({
       token,
-      user: { id: newId, email, name, role },
+      user: newUser,
       needsProfileSetup: true
     });
   } catch (err) {
     console.error('Register error:', err);
-    res.status(500).json({ error: 'Failed to create account' });
+    res.status(500).json({ error: err.message || 'Failed to create account' });
   }
 });
 
