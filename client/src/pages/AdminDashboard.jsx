@@ -141,14 +141,22 @@ export default function AdminDashboard() {
       {/* ===== SEMESTERS TAB ===== */}
       {tab === 'semesters' && (
         <div>
-          <div className="degree-tiles">
+          <div className="degree-tiles" style={{ marginBottom: '1rem' }}>
+            <button
+              type="button"
+              className={`degree-tile ${!selectedDegree ? 'selected' : ''}`}
+              onClick={() => setSelectedDegree(null)}
+            >
+              <span className="degree-tile-icon">🌐</span>
+              <span className="degree-tile-label">All Degree Programs</span>
+            </button>
             {DEGREE_TILES.map(deg => (
               <button
                 key={deg.code}
                 type="button"
                 className={`degree-tile ${selectedDegree?.code === deg.code ? 'selected' : ''}`}
                 style={{ '--tile-color': deg.color }}
-                onClick={() => setSelectedDegree(selectedDegree?.code === deg.code ? null : deg)}
+                onClick={() => setSelectedDegree(deg)}
               >
                 <span className="degree-tile-icon">{deg.icon}</span>
                 <span className="degree-tile-label">{deg.label}</span>
@@ -156,72 +164,64 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {selectedDegree && (
-            <div className="card" style={{ borderLeft: `4px solid ${selectedDegree.color}` }}>
-              <div className="card-header">
-                <h2>{selectedDegree.icon} {selectedDegree.label} — Semesters</h2>
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowSemForm(!showSemForm)}>
-                  {showSemForm ? 'Cancel' : '+ New Semester'}
-                </button>
-              </div>
-
-              {showSemForm && (
-                <form onSubmit={createSemester} style={{ display:'flex', gap:'0.75rem', alignItems:'flex-end', marginBottom:'1rem', flexWrap:'wrap' }}>
-                  <label style={{ fontWeight:600, fontSize:'0.85rem' }}>
-                    Term
-                    <select value={newSem.name} onChange={e => setNewSem({...newSem, name: e.target.value})} style={{ display:'block', padding:'0.5rem', marginTop:'0.25rem', border:'1px solid var(--border)', borderRadius:6 }}>
-                      <option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option>
-                      <option>Semester 5</option><option>Semester 6</option><option>Semester 7</option><option>Semester 8</option>
-                    </select>
-                  </label>
-                  <label style={{ fontWeight:600, fontSize:'0.85rem' }}>
-                    Year
-                    <input type="number" value={newSem.year} onChange={e => setNewSem({...newSem, year: Number(e.target.value)})} style={{ display:'block', padding:'0.5rem', marginTop:'0.25rem', border:'1px solid var(--border)', borderRadius:6, width:80 }} />
-                  </label>
-                  <button type="submit" className="btn btn-primary">Create</button>
-                </form>
-              )}
-
-              <table className="data-table">
-                <thead><tr><th>Semester</th><th>Status</th><th>Registration</th><th>Exams</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {filteredSemesters.map(s => (
-                    <tr key={s.id}>
-                      <td><strong>{s.name} {s.year}</strong></td>
-                      <td>{s.is_active ? <span className="badge success">Active</span> : <span className="badge">Inactive</span>}</td>
-                      <td>{s.registration_open ? <span className="badge success">Open</span> : <span className="badge">Closed</span>}</td>
-                      <td>{s.exams_completed ? <span className="badge success">Done</span> : '—'}</td>
-                      <td className="actions">
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${s.registration_open ? 'btn-danger' : 'btn-primary'}`}
-                          onClick={() => toggleReg(s.id, s.registration_open)}
-                        >
-                          {s.registration_open ? '🔒 Close Reg' : '✅ Open Reg'}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline btn-sm"
-                          onClick={() => api.toggleExamsCompleted(s.id, !s.exams_completed).then(load)}
-                        >
-                          {s.exams_completed ? 'Reopen Exams' : '📝 Mark Exams Done'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredSemesters.length === 0 && (
-                    <tr><td colSpan={5} className="muted">No semesters yet — create one above</td></tr>
-                  )}
-                </tbody>
-              </table>
+          <div className="card" style={{ borderLeft: selectedDegree ? `4px solid ${selectedDegree.color}` : '4px solid var(--primary)' }}>
+            <div className="card-header">
+              <h2>{selectedDegree ? `${selectedDegree.icon} ${selectedDegree.label} — Semesters` : '🌐 All Program Semesters'}</h2>
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowSemForm(!showSemForm)}>
+                {showSemForm ? 'Cancel' : '+ New Semester'}
+              </button>
             </div>
-          )}
 
-          {!selectedDegree && (
-            <div className="card">
-              <p className="muted">👆 Select a degree above to manage its semesters and registration</p>
-            </div>
-          )}
+            {showSemForm && (
+              <form onSubmit={createSemester} style={{ display:'flex', gap:'0.75rem', alignItems:'flex-end', marginBottom:'1rem', flexWrap:'wrap' }}>
+                <label style={{ fontWeight:600, fontSize:'0.85rem' }}>
+                  Term
+                  <select value={newSem.name} onChange={e => setNewSem({...newSem, name: e.target.value})} style={{ display:'block', padding:'0.5rem', marginTop:'0.25rem', border:'1px solid var(--border)', borderRadius:6 }}>
+                    <option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option>
+                    <option>Semester 5</option><option>Semester 6</option><option>Semester 7</option><option>Semester 8</option>
+                  </select>
+                </label>
+                <label style={{ fontWeight:600, fontSize:'0.85rem' }}>
+                  Year
+                  <input type="number" value={newSem.year} onChange={e => setNewSem({...newSem, year: Number(e.target.value)})} style={{ display:'block', padding:'0.5rem', marginTop:'0.25rem', border:'1px solid var(--border)', borderRadius:6, width:80 }} />
+                </label>
+                <button type="submit" className="btn btn-primary">Create Semester</button>
+              </form>
+            )}
+
+            <table className="data-table">
+              <thead><tr><th>Semester</th><th>Status</th><th>Registration</th><th>Exams</th><th>Actions</th></tr></thead>
+              <tbody>
+                {semesters.map(s => (
+                  <tr key={s.id}>
+                    <td><strong>{s.name} {s.year}</strong></td>
+                    <td>{s.is_active ? <span className="badge success">Active</span> : <span className="badge">Inactive</span>}</td>
+                    <td>{s.registration_open ? <span className="badge success">Open</span> : <span className="badge">Closed</span>}</td>
+                    <td>{s.exams_completed ? <span className="badge success">Done</span> : '—'}</td>
+                    <td className="actions">
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${s.registration_open ? 'btn-danger' : 'btn-primary'}`}
+                        onClick={() => toggleReg(s.id, s.registration_open)}
+                      >
+                        {s.registration_open ? '🔒 Close Reg' : '✅ Open Reg'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => api.toggleExamsCompleted(s.id, !s.exams_completed).then(load)}
+                      >
+                        {s.exams_completed ? 'Reopen Exams' : '📝 Mark Exams Done'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {semesters.length === 0 && (
+                  <tr><td colSpan={5} className="muted">No semesters yet — create one above</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
