@@ -108,6 +108,7 @@ export const api = {
   getUsers: () => request('/workflow/users'),
   deleteUser: (userId) => request(`/workflow/users/${userId}`, { method: 'DELETE' }),
   updateCourse: (courseId, data) => request(`/workflow/courses/${courseId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCourse: (courseId) => request(`/workflow/courses/${courseId}`, { method: 'DELETE' }),
   updateStaffSectionTimetable: (sectionId, data) => request(`/workflow/sections/${sectionId}/timetable`, { method: 'POST', body: JSON.stringify(data) }),
 
   // HOD workflow

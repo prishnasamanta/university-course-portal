@@ -491,11 +491,20 @@ router.post('/sections/:sectionId/timetable', authRequired, requireRoles('instru
   const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, instructor.id);
   if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
 
-  const { day_of_week, start_time, end_time, room } = req.body;
-  if (room) {
+  const { day_of_week, start_time, end_time, room, slots } = req.body;
+  if (room !== undefined) {
     dbInst.prepare('UPDATE sections SET room = ? WHERE id = ?').run(room, section.id);
   }
-  if (day_of_week != null && start_time && end_time) {
+
+  if (Array.isArray(slots) && slots.length > 0) {
+    dbInst.prepare('DELETE FROM section_schedule_slots WHERE section_id = ?').run(section.id);
+    const ins = dbInst.prepare('INSERT INTO section_schedule_slots (section_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)');
+    for (const s of slots) {
+      if (s.day_of_week != null && s.start_time && s.end_time) {
+        ins.run(section.id, Number(s.day_of_week), s.start_time, s.end_time);
+      }
+    }
+  } else if (day_of_week != null && start_time && end_time) {
     dbInst.prepare('DELETE FROM section_schedule_slots WHERE section_id = ?').run(section.id);
     dbInst.prepare('INSERT INTO section_schedule_slots (section_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)').run(section.id, Number(day_of_week), start_time, end_time);
   }

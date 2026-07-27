@@ -229,4 +229,13 @@ router.post('/sections/:sectionId/timetable', authRequired, requireRoles('academ
   res.json({ ok: true });
 });
 
+// DELETE /api/workflow/courses/:courseId — Staff/Admin deletes a course from database
+router.delete('/courses/:courseId', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.courseId);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  db.prepare('DELETE FROM courses WHERE id = ?').run(course.id);
+  res.json({ ok: true, deleted_id: course.id });
+});
+
 export default router;

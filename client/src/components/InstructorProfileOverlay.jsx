@@ -83,7 +83,25 @@ export default function InstructorProfileOverlay({ onComplete }) {
 
   return (
     <div className="modal-overlay profile-overlay">
-      <div className="modal profile-modal wide">
+      <div className="modal profile-modal wide" style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={onComplete}
+          style={{
+            position: 'absolute',
+            top: '12px',
+            right: '16px',
+            background: 'none',
+            border: 'none',
+            fontSize: '1.4rem',
+            cursor: 'pointer',
+            color: 'var(--muted)',
+            lineHeight: 1
+          }}
+          title="Close"
+        >
+          ✕
+        </button>
         {step === 'welcome' ? (
           <>
             <div className="profile-modal-header center">

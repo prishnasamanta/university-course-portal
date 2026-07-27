@@ -35,9 +35,7 @@ export default function InstructorDashboard() {
 
   // Timetable Modal state
   const [timetableSection, setTimetableSection] = useState(null);
-  const [ttDay, setTtDay] = useState(1);
-  const [ttStart, setTtStart] = useState('09:00');
-  const [ttEnd, setTtEnd] = useState('11:00');
+  const [ttSlots, setTtSlots] = useState([{ day_of_week: 1, start_time: '09:00', end_time: '11:00' }]);
   const [ttRoom, setTtRoom] = useState('');
 
   // View Results Tab state
@@ -127,20 +125,27 @@ export default function InstructorDashboard() {
     }
   };
 
-  // Timetable modal
+  // Multi-day timetable modal handlers
   const openTimetableModal = (sec) => {
     setTimetableSection(sec);
-    const existingSlot = sec.schedule_slots?.[0];
-    if (existingSlot) {
-      setTtDay(existingSlot.day_of_week);
-      setTtStart(existingSlot.start_time);
-      setTtEnd(existingSlot.end_time);
+    if (sec.schedule_slots && sec.schedule_slots.length > 0) {
+      setTtSlots(sec.schedule_slots.map(s => ({
+        day_of_week: s.day_of_week,
+        start_time: s.start_time,
+        end_time: s.end_time
+      })));
     } else {
-      setTtDay(1);
-      setTtStart('09:00');
-      setTtEnd('11:00');
+      setTtSlots([{ day_of_week: 1, start_time: '09:00', end_time: '11:00' }]);
     }
     setTtRoom(sec.room || '');
+  };
+
+  const addTtSlot = () => {
+    setTtSlots(prev => [...prev, { day_of_week: 2, start_time: '14:00', end_time: '16:00' }]);
+  };
+
+  const removeTtSlot = (idx) => {
+    setTtSlots(prev => prev.filter((_, i) => i !== idx));
   };
 
   const saveTimetable = async (e) => {
@@ -148,12 +153,10 @@ export default function InstructorDashboard() {
     if (!timetableSection) return;
     try {
       await api.updateSectionTimetable(timetableSection.id, {
-        day_of_week: ttDay,
-        start_time: ttStart,
-        end_time: ttEnd,
+        slots: ttSlots,
         room: ttRoom
       });
-      flash('success', 'Timetable and room updated successfully!');
+      flash('success', 'Multi-day timetable and room updated in database!');
       setTimetableSection(null);
       load();
     } catch (err) {
@@ -485,33 +488,75 @@ export default function InstructorDashboard() {
       {/* ==================================================== */}
       {timetableSection && (
         <div className="modal-overlay" style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="modal-content card" style={{ maxWidth:480, width:'90%', padding:'1.75rem' }}>
+          <div className="modal-content card" style={{ maxWidth:540, width:'95%', padding:'1.75rem' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
               <h3 style={{ margin:0 }}>📅 Timetable & Room for {timetableSection.course_code}</h3>
               <button type="button" className="btn btn-outline btn-sm" onClick={() => setTimetableSection(null)}>✕</button>
             </div>
 
             <form onSubmit={saveTimetable}>
-              <div className="form-grid" style={{ marginBottom:'1rem' }}>
-                <label>Day of Week
-                  <select value={ttDay} onChange={e => setTtDay(Number(e.target.value))} style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6, marginTop:'0.25rem' }}>
-                    {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                  </select>
+              <div style={{ marginBottom:'1rem' }}>
+                <label style={{ fontWeight:600, display:'block', marginBottom:'0.5rem' }}>
+                  Room Number / Venue
+                  <input type="text" value={ttRoom} onChange={e => setTtRoom(e.target.value)} placeholder="e.g. Room 204" style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6, width:'100%', marginTop:'0.25rem' }} />
                 </label>
-                <label>Start Time
-                  <input type="time" value={ttStart} onChange={e => setTtStart(e.target.value)} required style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6, marginTop:'0.25rem' }} />
-                </label>
-                <label>End Time
-                  <input type="time" value={ttEnd} onChange={e => setTtEnd(e.target.value)} required style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6, marginTop:'0.25rem' }} />
-                </label>
-                <label>Room Number / Venue
-                  <input type="text" value={ttRoom} onChange={e => setTtRoom(e.target.value)} placeholder="e.g. Room 204" style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6, marginTop:'0.25rem' }} />
-                </label>
+              </div>
+
+              <div style={{ marginBottom:'1.5rem' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.5rem' }}>
+                  <strong style={{ fontSize:'0.875rem' }}>Schedule Days &amp; Timetable Slots ({ttSlots.length} Days)</strong>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={addTtSlot}>
+                    + Add Another Day
+                  </button>
+                </div>
+
+                {ttSlots.map((slot, index) => (
+                  <div key={index} style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
+                    <select
+                      value={slot.day_of_week}
+                      onChange={e => {
+                        const updated = [...ttSlots];
+                        updated[index].day_of_week = Number(e.target.value);
+                        setTtSlots(updated);
+                      }}
+                      style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
+                    >
+                      {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                    </select>
+                    <input
+                      type="time"
+                      value={slot.start_time}
+                      onChange={e => {
+                        const updated = [...ttSlots];
+                        updated[index].start_time = e.target.value;
+                        setTtSlots(updated);
+                      }}
+                      required
+                      style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
+                    />
+                    <input
+                      type="time"
+                      value={slot.end_time}
+                      onChange={e => {
+                        const updated = [...ttSlots];
+                        updated[index].end_time = e.target.value;
+                        setTtSlots(updated);
+                      }}
+                      required
+                      style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
+                    />
+                    {ttSlots.length > 1 && (
+                      <button type="button" className="btn btn-danger btn-sm" onClick={() => removeTtSlot(index)}>
+                        ✕ Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
 
               <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.75rem' }}>
                 <button type="button" className="btn btn-outline" onClick={() => setTimetableSection(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Timetable</button>
+                <button type="submit" className="btn btn-primary">Save Multi-Day Timetable</button>
               </div>
             </form>
           </div>

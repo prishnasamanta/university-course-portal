@@ -128,6 +128,17 @@ export default function AdminDashboard() {
     }
   };
 
+  const deleteCourseItem = async (courseId, code) => {
+    if (!window.confirm(`Are you sure you want to delete course ${code}? This will remove it from the database.`)) return;
+    try {
+      await api.deleteCourse(courseId);
+      flash('success', `Course ${code} deleted from database.`);
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
   // ─── SECTION HANDLERS ───
   const createSection = async (e) => {
     e.preventDefault();
@@ -452,9 +463,12 @@ export default function AdminDashboard() {
                           <td>{c.title}</td>
                           <td><span className="badge">{c.credits} cr</span></td>
                           <td>{c.min_previous_grade || '—'}</td>
-                          <td>
+                          <td className="actions" style={{ display:'flex', gap:'0.5rem' }}>
                             <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditingCourse({...c})}>
-                              ✏️ Edit Course
+                              ✏️ Edit
+                            </button>
+                            <button type="button" className="btn btn-danger btn-sm" onClick={() => deleteCourseItem(c.id, c.code)}>
+                              🗑️ Delete
                             </button>
                           </td>
                         </tr>
