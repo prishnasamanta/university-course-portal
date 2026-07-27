@@ -103,6 +103,10 @@ export const api = {
   getSectionExamRegistrations: (sectionId) =>
     request(`/workflow/sections/${sectionId}/exam-registrations`),
 
+  // User Management
+  getUsers: () => request('/workflow/users'),
+  deleteUser: (userId) => request(`/workflow/users/${userId}`, { method: 'DELETE' }),
+
   // HOD workflow
   getDeptHeadCourses: () => request('/workflow/dept-head/courses'),
   hodApproveStudent: (enrollmentId) =>

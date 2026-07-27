@@ -149,7 +149,33 @@ router.get('/sections/:sectionId/exam-registrations', authRequired, requireRoles
     WHERE e.section_id = ? AND e.status = 'registered'
     ORDER BY st.roll_number
   `).all(req.params.sectionId);
-  res.json(enrolled);
+// GET /api/workflow/users — Admin/Staff lists all database users
+router.get('/users', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const users = db.prepare(`
+    SELECT u.id, u.name, u.email, u.role, u.created_at,
+           st.roll_number, st.id AS student_id, p.code AS program_code,
+           ins.employee_id, ins.department
+    FROM users u
+    LEFT JOIN students st ON st.user_id = u.id
+    LEFT JOIN programs p ON p.id = st.program_id
+    LEFT JOIN instructors ins ON ins.user_id = u.id
+    ORDER BY u.role, u.name
+  `).all();
+  res.json(users);
+});
+
+// DELETE /api/workflow/users/:userId — Admin purges a user from DB via CASCADE
+router.delete('/users/:userId', authRequired, requireRoles('admin', 'academic_staff'), (req, res) => {
+  const targetId = req.params.userId;
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role === 'admin' && String(req.user.id) !== String(user.id)) {
+    return res.status(403).json({ error: 'Cannot delete admin account' });
+  }
+
+  // Delete user from DB — CASCADE foreign keys cleanly purge student/instructor, enrollments, marks
+  db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
+  res.json({ ok: true, deleted_id: targetId });
 });
 
 export default router;

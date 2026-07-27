@@ -300,3 +300,24 @@ BEGIN
   VALUES (NEW.enrollment_id, NEW.entered_by, 'Instructor modified marks', OLD.marks, NEW.marks, 'approved', datetime('now'));
 END;
 
+-- Trigger: Automatic Student Profile creation on users INSERT (SQL/TablePlus/Website)
+CREATE TRIGGER IF NOT EXISTS trg_auto_create_student_profile
+AFTER INSERT ON users
+FOR EACH ROW
+WHEN NEW.role = 'student'
+BEGIN
+  INSERT OR IGNORE INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
+  VALUES (NEW.id, (SELECT id FROM programs LIMIT 1), 2025, 'STU' || NEW.id, 0);
+END;
+
+-- Trigger: Automatic Instructor Profile creation on users INSERT (SQL/TablePlus/Website)
+CREATE TRIGGER IF NOT EXISTS trg_auto_create_instructor_profile
+AFTER INSERT ON users
+FOR EACH ROW
+WHEN NEW.role = 'instructor'
+BEGIN
+  INSERT OR IGNORE INTO instructors (user_id, department, employee_id, profile_completed)
+  VALUES (NEW.id, 'cs', 'EMP' || NEW.id, 0);
+END;
+
+

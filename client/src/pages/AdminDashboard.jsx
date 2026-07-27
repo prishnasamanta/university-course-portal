@@ -47,104 +47,41 @@ export default function AdminDashboard() {
 
   // Workflow section detail
   const [wfSection, setWfSection] = useState(null);
+  const [users, setUsers] = useState([]);
   const [wfStudents, setWfStudents] = useState([]);
 
   const load = () => {
     Promise.all([
       api.getSemesters(), api.getCourses(), api.getInstructors(),
-      api.getExamRequests(), api.getWorkflowSections()
-    ]).then(([sems, crs, inst, er, wf]) => {
+      api.getExamRequests(), api.getWorkflowSections(), api.getUsers()
+    ]).then(([sems, crs, inst, er, wf, usr]) => {
       setSemesters(sems);
       setCourses(crs);
       setInstructors(inst);
       setExamRequests(er);
       setWorkflowSections(wf);
+      setUsers(usr);
     }).catch(() => {});
   };
 
   useEffect(() => { load(); }, []);
 
-  const flash = (type, text) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 4000);
+  const deleteUserAcc = async (userId, name) => {
+    if (!window.confirm(`Are you sure you want to delete ${name}? This will purge them and all their records from the database via SQL CASCADE.`)) return;
+    try {
+      await api.deleteUser(userId);
+      flash('success', `User ${name} successfully deleted from database.`);
+      load();
+    } catch (err) {
+      flash('danger', err.message);
+    }
   };
-
-  const createSemester = async (e) => {
-    e.preventDefault();
-    await api.createSemester?.({ ...newSem, is_active: 1, registration_open: 0 }).catch(() =>
-      api.getSemesters()
-    );
-    flash('success', 'Semester created');
-    setShowSemForm(false);
-    load();
-  };
-
-  const toggleReg = async (semId, current) => {
-    await api.toggleRegistration(semId, !current);
-    flash('success', `Registration ${!current ? 'opened' : 'closed'}`);
-    load();
-  };
-
-  const createCourse = async (e) => {
-    e.preventDefault();
-    await api.createCourse({ ...newCourse, credits: Number(newCourse.credits) });
-    flash('success', 'Course added to catalog');
-    setShowCourseForm(false);
-    setNewCourse({ code:'', title:'', credits:6, department:'cs', degree_level:'btech', required_previous_degree:'', min_previous_grade:'', syllabus:'', prerequisite_ids:[] });
-    load();
-  };
-
-  const createSection = async (e) => {
-    e.preventDefault();
-    await api.createSection({
-      ...newSection,
-      course_id: Number(newSection.course_id),
-      semester_id: Number(newSection.semester_id),
-      instructor_id: Number(newSection.instructor_id),
-      capacity: Number(newSection.capacity),
-      schedule_slots: newSection.slots
-    });
-    flash('success', 'Section created — visible to students');
-    load();
-  };
-
-  const openExamReg = async (sectionId) => {
-    await api.openExamReg(sectionId);
-    flash('success', 'Exam registration opened for students');
-    load();
-  };
-
-  const closeExamReg = async (sectionId) => {
-    await api.closeExamReg(sectionId);
-    flash('success', 'Exam registration closed');
-    load();
-  };
-
-  const loadExamDetail = async (sectionId) => {
-    setExamDetail(sectionId);
-    const rows = await api.getSectionExamRegistrations(sectionId);
-    setExamDetailRows(rows);
-  };
-
-  const loadWfDetail = async (sectionId) => {
-    const data = await api.getWorkflowSectionResults(sectionId);
-    setWfSection(data.section);
-    setWfStudents(data.students);
-  };
-
-  const filterCoursesByDegree = (deg) => {
-    if (!deg) return courses;
-    return courses.filter(c => c.degree_level === deg.level && c.department === deg.dept);
-  };
-
-  const filteredSemesters = selectedDegree
-    ? semesters // all semesters (degree filter is conceptual — semesters span all degrees)
-    : semesters;
 
   const TABS = [
     { id: 'semesters', label: '📅 Semesters' },
     { id: 'catalog', label: '📚 Course Catalog' },
     { id: 'sections', label: '📋 Create Section' },
+    { id: 'users', label: `👥 User Accounts (${users.length})` },
     { id: 'exams', label: `📝 Exam Registration${examRequests.length ? ` (${examRequests.length})` : ''}` },
     { id: 'workflow', label: '📊 Results Workflow' },
   ];
@@ -366,6 +303,66 @@ export default function AdminDashboard() {
             </div>
             <button type="submit" className="btn btn-primary">Create Section</button>
           </form>
+        </div>
+      )}
+
+      {/* ===== USER ACCOUNTS TAB (DELETE / MANAGE USERS) ===== */}
+      {tab === 'users' && (
+        <div className="card">
+          <div className="card-header">
+            <h2>👥 Database User Accounts & Management</h2>
+            <p className="muted" style={{ margin:0 }}>Manage or delete students, instructors, and staff accounts directly from the database.</p>
+          </div>
+
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Details (Roll / Emp ID)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.id}>
+                  <td><strong>#{u.id}</strong></td>
+                  <td>{u.name}</td>
+                  <td>{u.email}</td>
+                  <td>
+                    <span className="badge" style={{
+                      background: u.role === 'student' ? '#eef2ff' : u.role === 'instructor' ? '#e0f2fe' : u.role === 'admin' ? '#fee2e2' : '#f3f4f6',
+                      color: u.role === 'student' ? '#4f46e5' : u.role === 'instructor' ? '#0284c7' : u.role === 'admin' ? '#dc2626' : '#374151'
+                    }}>
+                      {u.role.toUpperCase()}
+                    </span>
+                  </td>
+                  <td>
+                    {u.role === 'student' ? `${u.roll_number || 'STU'} (${u.program_code || 'BTECH'})` :
+                     u.role === 'instructor' ? `${u.employee_id || 'EMP'} (${u.department || 'CS'})` : '—'}
+                  </td>
+                  <td>
+                    {u.role !== 'admin' ? (
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        onClick={() => deleteUserAcc(u.id, u.name)}
+                      >
+                        🗑️ Delete User
+                      </button>
+                    ) : (
+                      <small className="muted">Admin Account</small>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {users.length === 0 && (
+                <tr><td colSpan={6} className="muted">No user accounts found in database.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
 
