@@ -1,21 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 :root {
-  --bg: #f4f6fb;
+  --bg: #f8fafc;
   --surface: #ffffff;
-  --text: #1a1f36;
-  --muted: #6b7280;
-  --primary: #4f46e5;
-  --primary-dark: #4338ca;
-  --danger: #dc2626;
-  --success: #059669;
-  --border: #e5e7eb;
-  --shadow: 0 1px 3px rgba(0,0,0,.08);
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --muted: #64748b;
+  --primary: #1e3a8a;
+  --primary-light: #4338ca;
+  --primary-gradient: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%);
+  --accent: #4f46e5;
+  --accent-light: #eef2ff;
+  --danger: #ef4444;
+  --danger-light: #fef2f2;
+  --success: #10b981;
+  --success-light: #ecfdf5;
+  --warning: #f59e0b;
+  --warning-light: #fffbeb;
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 10px 25px -5px rgba(30, 58, 138, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+  --shadow-xl: 0 20px 30px -10px rgba(30, 58, 138, 0.15);
+  --radius: 12px;
+  
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
   color: var(--text);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { min-height: 100vh; }
-a { color: var(--primary); text-decoration: none; }
-a:hover { text-decoration: underline; }
+body { min-height: 100vh; background: var(--bg); color: var(--text); }
+a { color: var(--accent); text-decoration: none; transition: color 0.15s ease; }
+a:hover { color: var(--primary); text-decoration: none; }
