@@ -13,11 +13,21 @@ const STATUS_INFO = {
 export default function StudentResults() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showNoExamModal, setShowNoExamModal] = useState(false);
 
   useEffect(() => {
     api.getMyResults()
-      .then(setResults)
-      .catch(() => setResults([]))
+      .then(res => {
+        setResults(res || []);
+        const hasRegisteredExams = (res || []).some(r => r.exam_registered_id != null);
+        if (!hasRegisteredExams) {
+          setShowNoExamModal(true);
+        }
+      })
+      .catch(() => {
+        setResults([]);
+        setShowNoExamModal(true);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -30,12 +40,27 @@ export default function StudentResults() {
         <p>Track the status of your exam results through the approval workflow</p>
       </div>
 
+      {showNoExamModal && (
+        <div className="modal-overlay" style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+          <div className="modal-content card" style={{ textAlign: 'center', padding: '2rem', maxWidth: '420px', width: '90%' }}>
+            <span style={{ fontSize: '3.5rem', display: 'block', marginBottom: '0.5rem' }}>📝</span>
+            <h2 style={{ marginBottom: '0.5rem', color: 'var(--text)' }}>No Exams Registered</h2>
+            <p className="muted" style={{ marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              You have not registered for any examinations yet. Please register for exams under <strong>Exam Registration</strong> when registration is opened by Academic Staff.
+            </p>
+            <button type="button" className="btn btn-primary btn-block" onClick={() => setShowNoExamModal(false)}>
+              OK, Got It
+            </button>
+          </div>
+        </div>
+      )}
+
       {results.length === 0 ? (
         <div className="card">
           <div style={{ textAlign: 'center', padding: '2rem' }}>
             <span style={{ fontSize: '3rem', display: 'block', marginBottom: '0.75rem' }}>📭</span>
             <h3>No results yet</h3>
-            <p className="muted">Your results will appear here after exams and marks are entered by your instructor.</p>
+            <p className="muted">Your results will appear here after exams are registered and marks are entered by your instructor.</p>
           </div>
         </div>
       ) : (

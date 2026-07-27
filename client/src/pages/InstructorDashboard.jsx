@@ -212,7 +212,15 @@ export default function InstructorDashboard() {
       {activeTab === 'courses' && (
         <div>
           {/* Degree Filter Tiles */}
-          <div className="degree-tiles">
+          <div className="degree-tiles" style={{ marginBottom: '1.25rem' }}>
+            <button
+              type="button"
+              className={`degree-tile ${!selectedDegree ? 'selected' : ''}`}
+              onClick={() => setSelectedDegree(null)}
+            >
+              <span className="degree-tile-icon">🌐</span>
+              <span className="degree-tile-label">All Degrees ({sections.length})</span>
+            </button>
             {DEGREE_TILES.map(deg => {
               const count = sections.filter(s => s.degree_level === deg.level && s.department === deg.dept).length;
               return (
@@ -221,7 +229,7 @@ export default function InstructorDashboard() {
                   type="button"
                   className={`degree-tile ${selectedDegree?.code === deg.code ? 'selected' : ''}`}
                   style={{ '--tile-color': deg.color }}
-                  onClick={() => setSelectedDegree(selectedDegree?.code === deg.code ? null : deg)}
+                  onClick={() => setSelectedDegree(deg)}
                 >
                   <span className="degree-tile-icon">{deg.icon}</span>
                   <span className="degree-tile-label">{deg.label} ({count})</span>
@@ -240,89 +248,104 @@ export default function InstructorDashboard() {
               </p>
             </div>
           ) : (
-            <div className="card-grid">
-              {filteredSections.map(s => {
-                const slots = s.schedule_slots || [];
-                const allMarksSaved = s.enrolled_count > 0 && s.marks_count >= s.enrolled_count;
-                const canEnterMarks = !s.exam_reg_open && !allMarksSaved && (s.exam_requested || s.exams_completed);
+            DEGREE_TILES.map(deg => {
+              const degSections = filteredSections.filter(s => s.degree_level === deg.level && s.department === deg.dept);
+              if (degSections.length === 0) return null;
 
-                return (
-                  <div key={s.id} className="card section-card">
-                    <div className="section-card-header">
-                      <span className="badge dept">{s.course_code}</span>
-                      <span className="badge">{s.credits} cr</span>
-                    </div>
+              return (
+                <div key={deg.code} style={{ marginBottom: '2rem' }}>
+                  <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: deg.color, marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>{deg.icon}</span>
+                    <span>{deg.label}</span>
+                  </h2>
 
-                    <h3 style={{ margin:'0.5rem 0' }}>{s.course_title}</h3>
-                    <small className="muted">Section {s.section_code} · {s.semester_name} {s.year}</small>
+                  <div className="card-grid">
+                    {degSections.map(s => {
+                      const slots = s.schedule_slots || [];
+                      const allMarksSaved = s.enrolled_count > 0 && s.marks_count >= s.enrolled_count;
+                      // Enter marks is shown when registration is closed AND marks are not fully saved
+                      const canEnterMarks = !s.exam_reg_open && !allMarksSaved && (s.exam_requested === 1 || s.exams_completed === 1);
 
-                    <div style={{ fontSize:'0.85rem', margin:'0.5rem 0' }}>
-                      <div>👥 Enrolled Students: <strong>{s.enrolled_count}</strong></div>
-                      <div>🏫 Room: <strong>{s.room || 'Not set'}</strong></div>
-                      <div>
-                        🕐 Schedule:{' '}
-                        <strong>
-                          {slots.length > 0
-                            ? slots.map(sl => `${sl.day_name} ${sl.start_time}-${sl.end_time}`).join(', ')
-                            : 'Not set'}
-                        </strong>
-                      </div>
-                    </div>
+                      return (
+                        <div key={s.id} className="card section-card">
+                          <div className="section-card-header">
+                            <span className="badge dept">{s.course_code}</span>
+                            <span className="badge">{s.credits} cr</span>
+                          </div>
 
-                    {/* Action buttons & lifecycle state */}
-                    <div style={{ marginTop:'0.75rem', paddingTop:'0.75rem', borderTop:'1px solid var(--border)', display:'flex', gap:'0.5rem', flexWrap:'wrap', alignItems:'center' }}>
-                      {/* State 1: Exam Registration Open */}
-                      {s.exam_reg_open ? (
-                        <>
-                          <span className="badge success">📝 Registration Open</span>
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
-                            📅 Change Timetable
-                          </button>
-                        </>
-                      ) : s.exam_requested ? (
-                        /* State 2: Exam Requested */
-                        <>
-                          <span className="badge" style={{ background:'#fef3c7', color:'#92400e' }}>⏳ Exam Requested</span>
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => cancelExam(s.id)}>
-                            Cancel Request
-                          </button>
-                          {canEnterMarks && (
-                            <button type="button" className="btn btn-primary btn-sm" onClick={() => openMarksModal(s)}>
-                              ✏️ Enter Marks
-                            </button>
-                          )}
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
-                            📅 Change Timetable
-                          </button>
-                        </>
-                      ) : (
-                        /* State 3: Initial State (No Exam Requested) */
-                        <>
-                          <button type="button" className="btn btn-primary btn-sm" onClick={() => requestExam(s.id)}>
-                            📝 Request Exam
-                          </button>
-                          {canEnterMarks && (
-                            <button type="button" className="btn btn-primary btn-sm" onClick={() => openMarksModal(s)}>
-                              ✏️ Enter Marks
-                            </button>
-                          )}
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
-                            {slots.length > 0 ? '📅 Change Timetable' : '📅 Add Timetable'}
-                          </button>
-                        </>
-                      )}
+                          <h3 style={{ margin:'0.5rem 0' }}>{s.course_title}</h3>
+                          <small className="muted">Section {s.section_code} · {s.semester_name} {s.year}</small>
 
-                      {/* Hide Enter Marks button once all marks are entered & saved */}
-                      {allMarksSaved && (
-                        <span className="badge success" style={{ background:'#ecfdf5', color:'#059669' }}>
-                          ✅ Marks Submitted ({s.marks_count}/{s.enrolled_count})
-                        </span>
-                      )}
-                    </div>
+                          <div style={{ fontSize:'0.85rem', margin:'0.55rem 0' }}>
+                            <div>👥 Enrolled Students: <strong>{s.enrolled_count}</strong></div>
+                            <div>🏫 Room: <strong>{s.room || 'Not set'}</strong></div>
+                            <div>
+                              🕐 Schedule:{' '}
+                              <strong>
+                                {slots.length > 0
+                                  ? slots.map(sl => `${sl.day_name} ${sl.start_time}-${sl.end_time}`).join(', ')
+                                  : 'Not set'}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Action buttons & lifecycle state */}
+                          <div style={{ marginTop:'0.75rem', paddingTop:'0.75rem', borderTop:'1px solid var(--border)', display:'flex', gap:'0.5rem', flexWrap:'wrap', alignItems:'center' }}>
+                            {/* State 1: Exam Registration Open from Academic Staff */}
+                            {s.exam_reg_open ? (
+                              <>
+                                <span className="badge success">📝 Registration Open</span>
+                                <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
+                                  📅 Change Timetable
+                                </button>
+                              </>
+                            ) : s.exam_requested ? (
+                              /* State 2: Exam Requested by Instructor */
+                              <>
+                                <span className="badge" style={{ background:'#fef3c7', color:'#92400e' }}>⏳ Exam Requested</span>
+                                <button type="button" className="btn btn-outline btn-sm" onClick={() => cancelExam(s.id)}>
+                                  Cancel Request
+                                </button>
+                                {canEnterMarks && (
+                                  <button type="button" className="btn btn-primary btn-sm" onClick={() => openMarksModal(s)}>
+                                    ✏️ Enter Marks
+                                  </button>
+                                )}
+                                <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
+                                  📅 Change Timetable
+                                </button>
+                              </>
+                            ) : (
+                              /* State 3: Initial State (No Exam Requested) */
+                              <>
+                                <button type="button" className="btn btn-primary btn-sm" onClick={() => requestExam(s.id)}>
+                                  📝 Request Exam
+                                </button>
+                                {canEnterMarks && (
+                                  <button type="button" className="btn btn-primary btn-sm" onClick={() => openMarksModal(s)}>
+                                    ✏️ Enter Marks
+                                  </button>
+                                )}
+                                <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
+                                  {slots.length > 0 ? '📅 Change Timetable' : '📅 Add Timetable'}
+                                </button>
+                              </>
+                            )}
+
+                            {/* Hide Enter Marks button once all marks are entered & saved */}
+                            {allMarksSaved && (
+                              <span className="badge success" style={{ background:'#ecfdf5', color:'#059669' }}>
+                                ✅ Marks Submitted ({s.marks_count}/{s.enrolled_count})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })
           )}
         </div>
       )}
