@@ -328,6 +328,10 @@ export async function initDb() {
           seedSqlite(dbInstance);
         }
 
+        // Hydrate SQLite from live PostgreSQL to ensure 100% ID synchronization
+        const { hydrateSqliteFromPostgres } = await import('./hydrate.js');
+        await hydrateSqliteFromPostgres(dbInstance);
+
         wrapperInstance = createWrapper(dbInstance);
         return wrapperInstance;
       } catch (err) {

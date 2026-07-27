@@ -179,6 +179,55 @@ export async function initPostgres() {
         grade_point NUMERIC NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS course_prerequisites (
+        course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+        prerequisite_course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+        PRIMARY KEY (course_id, prerequisite_course_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS instructor_teaching_preferences (
+        id SERIAL PRIMARY KEY,
+        instructor_id INTEGER REFERENCES instructors(id) ON DELETE CASCADE,
+        course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+        semester_id INTEGER REFERENCES semesters(id),
+        day_of_week INTEGER NOT NULL,
+        start_time VARCHAR(20) NOT NULL,
+        end_time VARCHAR(20) NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS assessment_components (
+        id SERIAL PRIMARY KEY,
+        section_id INTEGER REFERENCES sections(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        max_marks NUMERIC NOT NULL,
+        weight_percent NUMERIC NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS marks (
+        id SERIAL PRIMARY KEY,
+        enrollment_id INTEGER REFERENCES enrollments(id) ON DELETE CASCADE,
+        component_id INTEGER REFERENCES assessment_components(id) ON DELETE CASCADE,
+        marks_obtained NUMERIC,
+        entered_by INTEGER REFERENCES users(id),
+        finalized INTEGER DEFAULT 0,
+        finalized_at TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (enrollment_id, component_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS marks_revision_requests (
+        id SERIAL PRIMARY KEY,
+        mark_id INTEGER REFERENCES marks(id) ON DELETE CASCADE,
+        requested_by INTEGER REFERENCES users(id),
+        reason TEXT NOT NULL,
+        old_value NUMERIC,
+        new_value NUMERIC NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        reviewed_by INTEGER REFERENCES users(id),
+        reviewed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       INSERT INTO grading_policy (letter_grade, min_percent, grade_point) VALUES
         ('O', 90, 10), ('A+', 80, 9), ('A', 70, 8),
         ('B+', 60, 7), ('B', 50, 6), ('C', 40, 5), ('F', 0, 0)
