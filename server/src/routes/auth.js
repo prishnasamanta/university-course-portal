@@ -1,60 +1,22 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { getDb } from '../db/index.js';
-import { getFirestoreDb } from '../db/firebase.js';
 import { signToken, authRequired } from '../middleware/auth.js';
 
 const router = Router();
 
 async function findUserByEmail(email) {
-  // 1. Try SQLite first (contains authoritative pre-seeded accounts)
   try {
     const db = await getDb();
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     if (user) return user;
   } catch (err) {
-    console.error('[SQLite Auth Error]:', err.message);
+    console.error('[Database Auth Error]:', err.message);
   }
-
-  // 2. Fallback to Firestore (for accounts created via Create Account tab)
-  try {
-    const firestore = getFirestoreDb();
-    if (firestore) {
-      const snapshot = await firestore.collection('users').where('email', '==', email).limit(1).get();
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        return { id: doc.data().id || doc.id, ...doc.data() };
-      }
-    }
-  } catch (err) {
-    console.warn('[Firestore Auth Warning]:', err.message);
-  }
-
   return null;
 }
 
 async function findUserById(id) {
-  // For numeric IDs (seeded SQLite accounts), check SQLite first
-  if (typeof id === 'number' || /^\d+$/.test(String(id))) {
-    try {
-      const db = await getDb();
-      const row = db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(id);
-      if (row) return row;
-    } catch (err) { /* fallthrough */ }
-  }
-
-  // For string IDs (Firestore-registered accounts), check Firestore
-  try {
-    const firestore = getFirestoreDb();
-    if (firestore) {
-      const doc = await firestore.collection('users').doc(String(id)).get();
-      if (doc.exists) {
-        return { id: doc.data().id || doc.id, ...doc.data() };
-      }
-    }
-  } catch (err) { /* Ignore */ }
-
-  // Final fallback: SQLite for any remaining case
   try {
     const db = await getDb();
     return db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(id);
@@ -110,7 +72,7 @@ router.post('/register', async (req, res) => {
     const password_hash = bcrypt.hashSync(password, 10);
     const db = await getDb();
 
-    // 1. Insert into local SQLite database first to obtain authoritative INTEGER ID
+    // Insert into PostgreSQL/SQLite database to obtain INTEGER ID and store user profile
     const result = db.prepare('INSERT INTO users (name, email, role, password_hash) VALUES (?, ?, ?, ?)')
       .run(name, email, role, password_hash);
     const numericId = result.lastInsertRowid;
@@ -136,20 +98,6 @@ router.post('/register', async (req, res) => {
       email,
       role
     };
-
-    // 2. Save to Firestore asynchronously if available
-    try {
-      const firestore = getFirestoreDb();
-      if (firestore) {
-        await firestore.collection('users').doc(String(numericId)).set({
-          ...newUser,
-          password_hash,
-          created_at: new Date().toISOString()
-        });
-      }
-    } catch (err) {
-      console.warn('[Register Firestore Warning]:', err.message);
-    }
 
     const token = signToken(newUser);
     res.status(201).json({

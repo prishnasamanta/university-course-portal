@@ -5,7 +5,6 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { initDb } from './db/index.js';
 import dbHolder from './db/index.js';
-import { initFirebase, getFirebaseStatus } from './db/firebase.js';
 import { initPostgres, getPostgresPool } from './db/postgres.js';
 import authRoutes from './routes/auth.js';
 import studentRoutes from './routes/students.js';
@@ -34,7 +33,6 @@ let isPostgresActive = false;
   }
   const db = await initDb();
   dbHolder.setInstance(db);
-  initFirebase();
 })().catch(console.error);
 
 // Health check endpoints
@@ -42,8 +40,7 @@ const healthHandler = (_req, res) => {
   res.json({
     status: 'ok',
     service: 'University Course Portal API',
-    database: isPostgresActive ? 'PostgreSQL' : 'SQLite',
-    firebase: getFirebaseStatus()
+    database: isPostgresActive ? 'PostgreSQL' : 'SQLite'
   });
 };
 
@@ -70,8 +67,7 @@ if (fs.existsSync(clientDistPath)) {
     res.json({
       status: 'ok',
       message: 'University Course Portal API Server is running live on Render!',
-      health: '/api/health',
-      firebase: getFirebaseStatus()
+      health: '/api/health'
     });
   });
 }
