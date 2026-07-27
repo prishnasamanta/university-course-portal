@@ -105,18 +105,18 @@ function seedSqlite(db) {
     `);
 
     db.exec(`
-      INSERT INTO academic_staff (user_id, staff_code, office_room) VALUES
+      INSERT OR IGNORE INTO academic_staff (user_id, staff_code, office_room) VALUES
       ((SELECT id FROM users WHERE email='staff@uni.edu'), 'STF001', 'Room 102');
 
-      INSERT INTO dept_heads (user_id, department, head_code) VALUES
+      INSERT OR IGNORE INTO dept_heads (user_id, department, head_code) VALUES
       ((SELECT id FROM users WHERE email='head@uni.edu'), 'cs', 'HOD001');
 
-      INSERT INTO admins (user_id, admin_code) VALUES
+      INSERT OR IGNORE INTO admins (user_id, admin_code) VALUES
       ((SELECT id FROM users WHERE email='admin@uni.edu'), 'ADM001');
     `);
 
     db.exec(`
-      INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id) VALUES 
+      INSERT OR IGNORE INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id) VALUES 
       ((SELECT id FROM users WHERE email='alice@student.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2022, 'CS22001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='ram.das@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23001', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='priya.verma@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23002', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
@@ -150,7 +150,7 @@ function seedSqlite(db) {
     `);
 
     db.exec(`
-      INSERT INTO instructors (user_id, department, employee_id, profile_completed) VALUES
+      INSERT OR IGNORE INTO instructors (user_id, department, employee_id, profile_completed) VALUES
       ((SELECT id FROM users WHERE email='dr.smith@uni.edu'), 'Computer Science', 'EMP001', 1),
       ((SELECT id FROM users WHERE email='anita.roy@uni.edu'), 'Computer Science', 'EMP002', 1),
       ((SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'), 'Computer Science', 'EMP003', 1),
@@ -160,7 +160,7 @@ function seedSqlite(db) {
     `);
     
     db.exec(`
-      INSERT INTO courses (code, title, credits, description, department, degree_level, is_published) VALUES
+      INSERT OR IGNORE INTO courses (code, title, credits, description, department, degree_level, is_published) VALUES
       ('CS101', 'Data Structures', 6, 'Fundamental data structures and algorithms', 'cs', 'btech', 1),
       ('CS102', 'Algorithms', 6, 'Design and analysis of algorithms', 'cs', 'btech', 1),
       ('CS103', 'Database Management Systems', 6, 'Relational databases and SQL', 'cs', 'btech', 1),
@@ -179,22 +179,22 @@ function seedSqlite(db) {
     `);
 
     db.exec(`
-      INSERT INTO sections (course_id, semester_id, section_code, capacity, exam_requested, exam_reg_open, instructor_id) VALUES
-      ((SELECT id FROM courses WHERE code='CS101'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS102'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS103'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS201'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS202'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS203'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS301'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS302'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS303'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='ECO101'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='ECO102'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='ECO103'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='STAT201'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='STAT202'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='STAT203'), (SELECT id FROM semesters WHERE name='Fall' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu')));
+      INSERT OR IGNORE INTO sections (course_id, semester_id, section_code, capacity, exam_requested, exam_reg_open, instructor_id) VALUES
+      ((SELECT id FROM courses WHERE code='CS101'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='CS102'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='CS103'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='CS201'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='CS202'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='CS203'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='CS301'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='CS302'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='CS303'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='ECO101'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='ECO102'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='ECO103'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='STAT201'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='STAT202'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu'))),
+      ((SELECT id FROM courses WHERE code='STAT203'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu')));
     `);
 
     db.exec(`
