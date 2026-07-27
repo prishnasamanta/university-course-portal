@@ -34,7 +34,15 @@ router.post('/login', async (req, res) => {
     }
 
     const user = await findUserByEmail(email);
-    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const passwordValid = (user.password_hash && bcrypt.compareSync(password, user.password_hash)) ||
+                          (user.password_hash === password) ||
+                          (user.password === password);
+
+    if (!passwordValid) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -81,13 +89,13 @@ router.post('/register', async (req, res) => {
       const defaultProgram = db.prepare('SELECT id FROM programs LIMIT 1').get()?.id || 1;
       const rollNo = `STU${numericId}${Math.floor(Math.random() * 1000)}`;
       db.prepare(`
-        INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
+        INSERT OR IGNORE INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
         VALUES (?, ?, ?, ?, 0)
       `).run(numericId, defaultProgram, new Date().getFullYear(), rollNo);
     } else if (role === 'instructor') {
       const empId = `EMP${numericId}${Math.floor(Math.random() * 1000)}`;
       db.prepare(`
-        INSERT INTO instructors (user_id, department, employee_id, profile_completed)
+        INSERT OR IGNORE INTO instructors (user_id, department, employee_id, profile_completed)
         VALUES (?, ?, ?, 0)
       `).run(numericId, 'Computer Science', empId);
     }
