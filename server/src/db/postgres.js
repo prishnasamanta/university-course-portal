@@ -49,12 +49,13 @@ export async function initPostgres() {
 
       CREATE TABLE IF NOT EXISTS semesters (
         id SERIAL PRIMARY KEY,
+        semester_number INTEGER NOT NULL,
         name VARCHAR(50) NOT NULL,
         year INTEGER NOT NULL,
         is_active INTEGER DEFAULT 0,
         registration_open INTEGER DEFAULT 0,
         exams_completed INTEGER DEFAULT 0,
-        UNIQUE(name, year)
+        UNIQUE(semester_number, year)
       );
 
       CREATE TABLE IF NOT EXISTS students (
@@ -75,6 +76,26 @@ export async function initPostgres() {
         department VARCHAR(100) NOT NULL,
         employee_id VARCHAR(100) UNIQUE NOT NULL,
         profile_completed INTEGER DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS academic_staff (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        staff_code VARCHAR(100) UNIQUE NOT NULL,
+        office_room VARCHAR(100)
+      );
+
+      CREATE TABLE IF NOT EXISTS dept_heads (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        department VARCHAR(100) NOT NULL,
+        head_code VARCHAR(100) UNIQUE NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        admin_code VARCHAR(100) UNIQUE NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS courses (

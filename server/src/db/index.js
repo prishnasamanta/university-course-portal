@@ -93,41 +93,60 @@ function seedSqlite(db) {
     `);
 
     db.exec(`
-      INSERT INTO semesters (name, year, is_active, registration_open, exams_completed) VALUES ('Fall', 2025, 1, 1, 0);
+      INSERT INTO semesters (semester_number, name, year, is_active, registration_open, exams_completed) VALUES
+      (1, 'Semester 1', 2025, 1, 1, 0),
+      (2, 'Semester 2', 2025, 0, 0, 0),
+      (3, 'Semester 3', 2025, 0, 0, 0),
+      (4, 'Semester 4', 2025, 0, 0, 0),
+      (5, 'Semester 5', 2025, 0, 0, 0),
+      (6, 'Semester 6', 2025, 0, 0, 0),
+      (7, 'Semester 7', 2025, 0, 0, 0),
+      (8, 'Semester 8', 2025, 0, 0, 0);
+    `);
+
+    db.exec(`
+      INSERT INTO academic_staff (user_id, staff_code, office_room) VALUES
+      ((SELECT id FROM users WHERE email='staff@uni.edu'), 'STF001', 'Room 102');
+
+      INSERT INTO dept_heads (user_id, department, head_code) VALUES
+      ((SELECT id FROM users WHERE email='head@uni.edu'), 'cs', 'HOD001');
+
+      INSERT INTO admins (user_id, admin_code) VALUES
+      ((SELECT id FROM users WHERE email='admin@uni.edu'), 'ADM001');
     `);
 
     db.exec(`
       INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id) VALUES 
-      ((SELECT id FROM users WHERE email='alice@student.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2022, 'CS22001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='ram.das@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23001', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='priya.verma@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23002', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='amit.sharma@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23003', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='nisha.patel@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23004', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='rohan.gupta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23005', 1, 'Class XII', 'B', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
+      ((SELECT id FROM users WHERE email='alice@student.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2022, 'CS22001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='ram.das@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23001', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='priya.verma@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23002', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='amit.sharma@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23003', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='nisha.patel@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23004', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='rohan.gupta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23005', 1, 'Class XII', 'B', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       
-      ((SELECT id FROM users WHERE email='sneha.roy@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='arjun.nair@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23002', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='deepa.menon@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23003', 1, 'B.Sc', 'B+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='vikram.singh@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23004', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='kavya.iyer@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23005', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
+      ((SELECT id FROM users WHERE email='sneha.roy@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='arjun.nair@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23002', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='deepa.menon@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23003', 1, 'B.Sc', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='vikram.singh@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23004', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='kavya.iyer@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23005', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       
-      ((SELECT id FROM users WHERE email='ravi.kumar@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23001', 1, 'B.Tech', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='ananya.das@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23002', 1, 'B.Tech', 'A+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='suresh.rao@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23003', 1, 'B.Tech', 'B+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='leela.shah@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23004', 1, 'B.Tech', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='mohan.bose@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23005', 1, 'B.Tech', 'B', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
+      ((SELECT id FROM users WHERE email='ravi.kumar@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23001', 1, 'B.Tech', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='ananya.das@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23002', 1, 'B.Tech', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='suresh.rao@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23003', 1, 'B.Tech', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='leela.shah@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23004', 1, 'B.Tech', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='mohan.bose@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23005', 1, 'B.Tech', 'B', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       
-      ((SELECT id FROM users WHERE email='tanvi.joshi@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23001', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='harsh.gupta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23002', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='simran.kaur@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23003', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='dev.mehta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23004', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='aisha.khan@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23005', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
+      ((SELECT id FROM users WHERE email='tanvi.joshi@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23001', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='harsh.gupta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23002', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='simran.kaur@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23003', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='dev.mehta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23004', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='aisha.khan@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23005', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       
-      ((SELECT id FROM users WHERE email='neha.sharma@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='arun.pillai@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23002', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='divya.bhat@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23003', 1, 'B.Sc', 'B+', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='kiran.reddy@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23004', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Fall' AND year=2025)),
-      ((SELECT id FROM users WHERE email='sanjay.mehta@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23005', 1, 'B.Sc', 'B', (SELECT id FROM semesters WHERE name='Fall' AND year=2025));
+      ((SELECT id FROM users WHERE email='neha.sharma@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='arun.pillai@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23002', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='divya.bhat@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23003', 1, 'B.Sc', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='kiran.reddy@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23004', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
+      ((SELECT id FROM users WHERE email='sanjay.mehta@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23005', 1, 'B.Sc', 'B', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025));
     `);
 
     db.exec(`
