@@ -5,7 +5,7 @@ export async function hydrateSqliteFromPostgres(sqliteDb) {
   if (!pool) return;
   try {
     console.log('[Hydration] Syncing SQLite in-memory state from live PostgreSQL...');
-    const tables = ['users', 'programs', 'semesters', 'students', 'instructors', 'academic_staff', 'dept_heads', 'admins', 'courses', 'sections', 'section_schedule_slots', 'enrollments', 'exam_registrations', 'assessment_components', 'marks', 'marks_revision_requests', 'instructor_teaching_preferences'];
+    const tables = ['users', 'programs', 'semesters', 'students', 'instructors', 'courses', 'sections', 'section_schedule_slots', 'enrollments', 'exam_registrations', 'assessment_components', 'marks', 'marks_revision_requests', 'instructor_teaching_preferences'];
     
     sqliteDb.exec('PRAGMA foreign_keys = OFF;');
     for (const table of tables) {

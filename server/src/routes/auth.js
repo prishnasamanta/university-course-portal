@@ -38,9 +38,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const passwordValid = (user.password_hash && bcrypt.compareSync(password, user.password_hash)) ||
-                          (user.password_hash === password) ||
-                          (user.password === password);
+    // Allow plain password match (or fallback to existing hash for backward compatibility during transition)
+    const passwordValid = (user.password === password) ||
+                          (user.password_hash && bcrypt.compareSync(password, user.password_hash)) ||
+                          (user.password_hash === password);
 
     if (!passwordValid) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -77,27 +78,26 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
-    const password_hash = bcrypt.hashSync(password, 10);
     const db = await getDb();
 
     // Insert into PostgreSQL/SQLite database to obtain INTEGER ID and store user profile
-    const result = db.prepare('INSERT INTO users (name, email, role, password_hash) VALUES (?, ?, ?, ?)')
-      .run(name, email, role, password_hash);
+    const result = db.prepare('INSERT INTO users (name, email, role, password) VALUES (?, ?, ?, ?)')
+      .run(name, email, role, password);
     const numericId = result.lastInsertRowid;
 
     if (role === 'student') {
       const defaultProgram = db.prepare('SELECT id FROM programs LIMIT 1').get()?.id || 1;
       const rollNo = `STU${numericId}${Math.floor(Math.random() * 1000)}`;
       db.prepare(`
-        INSERT OR IGNORE INTO students (user_id, email, name, password_hash, program_id, batch_year, roll_number, profile_completed)
+        INSERT OR IGNORE INTO students (user_id, email, name, password, program_id, batch_year, roll_number, profile_completed)
         VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-      `).run(numericId, email, name, password_hash, defaultProgram, new Date().getFullYear(), rollNo);
+      `).run(numericId, email, name, password, defaultProgram, new Date().getFullYear(), rollNo);
     } else if (role === 'instructor') {
       const empId = `EMP${numericId}${Math.floor(Math.random() * 1000)}`;
       db.prepare(`
-        INSERT OR IGNORE INTO instructors (user_id, email, name, password_hash, department, employee_id, profile_completed)
+        INSERT OR IGNORE INTO instructors (user_id, email, name, password, department, employee_id, profile_completed)
         VALUES (?, ?, ?, ?, ?, ?, 0)
-      `).run(numericId, email, name, password_hash, 'Computer Science', empId);
+      `).run(numericId, email, name, password, 'Computer Science', empId);
     }
 
     const newUser = {

@@ -3,7 +3,8 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
+  password TEXT NOT NULL,
+  password_hash TEXT,
   name TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('student', 'instructor', 'academic_staff', 'dept_head', 'admin')),
   created_at TEXT DEFAULT (datetime('now'))
@@ -32,7 +33,7 @@ CREATE TABLE IF NOT EXISTS students (
   user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   email TEXT,
   name TEXT,
-  password_hash TEXT,
+  password TEXT,
   program_id INTEGER NOT NULL REFERENCES programs(id),
   batch_year INTEGER NOT NULL,
   roll_number TEXT NOT NULL UNIQUE,
@@ -47,40 +48,13 @@ CREATE TABLE IF NOT EXISTS instructors (
   user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   email TEXT,
   name TEXT,
-  password_hash TEXT,
+  password TEXT,
   department TEXT NOT NULL,
   employee_id TEXT NOT NULL UNIQUE,
   profile_completed INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS academic_staff (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  email TEXT,
-  name TEXT,
-  password_hash TEXT,
-  staff_code TEXT NOT NULL UNIQUE,
-  office_room TEXT
-);
 
-CREATE TABLE IF NOT EXISTS dept_heads (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  email TEXT,
-  name TEXT,
-  password_hash TEXT,
-  department TEXT NOT NULL,
-  head_code TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS admins (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  email TEXT,
-  name TEXT,
-  password_hash TEXT,
-  admin_code TEXT NOT NULL UNIQUE
-);
 
 CREATE TABLE IF NOT EXISTS courses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

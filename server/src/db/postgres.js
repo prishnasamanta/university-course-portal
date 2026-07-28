@@ -39,7 +39,8 @@ export async function initPostgres() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255),
         name VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -68,7 +69,7 @@ export async function initPostgres() {
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
         email VARCHAR(255),
         name VARCHAR(255),
-        password_hash VARCHAR(255),
+        password VARCHAR(255),
         program_id INTEGER REFERENCES programs(id),
         batch_year INTEGER NOT NULL,
         roll_number VARCHAR(100) UNIQUE NOT NULL,
@@ -83,39 +84,10 @@ export async function initPostgres() {
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
         email VARCHAR(255),
         name VARCHAR(255),
-        password_hash VARCHAR(255),
+        password VARCHAR(255),
         department VARCHAR(100) NOT NULL,
         employee_id VARCHAR(100) UNIQUE NOT NULL,
         profile_completed INTEGER DEFAULT 0
-      );
-
-      CREATE TABLE IF NOT EXISTS academic_staff (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-        email VARCHAR(255),
-        name VARCHAR(255),
-        password_hash VARCHAR(255),
-        staff_code VARCHAR(100) UNIQUE NOT NULL,
-        office_room VARCHAR(100)
-      );
-
-      CREATE TABLE IF NOT EXISTS dept_heads (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-        email VARCHAR(255),
-        name VARCHAR(255),
-        password_hash VARCHAR(255),
-        department VARCHAR(100) NOT NULL,
-        head_code VARCHAR(100) UNIQUE NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS admins (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-        email VARCHAR(255),
-        name VARCHAR(255),
-        password_hash VARCHAR(255),
-        admin_code VARCHAR(100) UNIQUE NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS courses (
@@ -325,24 +297,37 @@ export async function initPostgres() {
     `);
 
     // Add email/name/password_hash columns to role tables if they don't exist yet
-    const roleTables = ['students', 'instructors', 'academic_staff', 'dept_heads', 'admins'];
+    // Add password column to users if it doesn't exist, and backfill from password_hash
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password VARCHAR(255)`).catch(() => {});
+    await client.query(`UPDATE users SET password = password_hash WHERE password IS NULL AND password_hash IS NOT NULL`).catch(() => {});
+
+    // Drop unused tables
+    const tablesToDrop = ['academic_staff', 'dept_heads', 'admins'];
+    for (const table of tablesToDrop) {
+      await client.query(`DROP TABLE IF EXISTS ${table} CASCADE`).catch(() => {});
+    }
+
+    // Add email/name/password columns to role tables if they don't exist yet, and drop password_hash
+    const roleTables = ['students', 'instructors'];
     for (const table of roleTables) {
-      for (const col of ['email', 'name', 'password_hash']) {
+      for (const col of ['email', 'name', 'password']) {
         await client.query(`
           ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} VARCHAR(255)
         `).catch(() => {});
       }
+      // Drop password_hash to match SQLite schema
+      await client.query(`ALTER TABLE ${table} DROP COLUMN IF EXISTS password_hash`).catch(() => {});
     }
 
-    // Backfill email/name/password_hash in role tables from users table
+    // Backfill email/name/password in role tables from users table
     for (const table of roleTables) {
       await client.query(`
         UPDATE ${table} SET 
           email = u.email, 
           name = u.name, 
-          password_hash = u.password_hash 
+          password = u.password 
         FROM users u 
-        WHERE ${table}.user_id = u.id AND ${table}.email IS NULL
+        WHERE ${table}.user_id = u.id AND (${table}.email IS NULL OR ${table}.password IS NULL)
       `).catch(() => {});
     }
 
@@ -350,21 +335,14 @@ export async function initPostgres() {
     const countRes = await client.query('SELECT COUNT(*) FROM users');
     if (parseInt(countRes.rows[0].count, 10) === 0) {
       console.log('[PostgreSQL] Seeding default database users and courses...');
-      const hash = (pw) => bcrypt.hashSync(pw, 10);
-      const P = hash('pass1234');
-      const PROF = hash('prof1234');
-      const S123 = hash('student123');
-      const ST123 = hash('staff123');
-      const HD123 = hash('head123');
-      const ADM = hash('admin123');
+      const P = 'pass1234';
+      const PROF = 'prof1234';
+      const S123 = 'student123';
 
       await client.query(`
-        INSERT INTO users (email, password_hash, name, role) VALUES
+        INSERT INTO users (email, password, name, role) VALUES
         ('alice@student.uni.edu', '${S123}', 'Alice Johnson', 'student'),
         ('dr.smith@uni.edu', '${PROF}', 'Prof. John Smith', 'instructor'),
-        ('staff@uni.edu', '${ST123}', 'Sarah Williams', 'academic_staff'),
-        ('head@uni.edu', '${HD123}', 'Dr. Anita Sharma', 'dept_head'),
-        ('admin@uni.edu', '${ADM}', 'System Admin', 'admin'),
         ('ram.das@btech.uni.edu', '${P}', 'Ram Das', 'student'),
         ('priya.verma@btech.uni.edu', '${P}', 'Priya Verma', 'student'),
         ('amit.sharma@btech.uni.edu', '${P}', 'Amit Sharma', 'student'),
@@ -395,6 +373,7 @@ export async function initPostgres() {
         ('sunita.bose@uni.edu', '${PROF}', 'Prof. Sunita Bose', 'instructor'),
         ('girish.nair@uni.edu', '${PROF}', 'Prof. Girish Nair', 'instructor'),
         ('kavita.sharma@uni.edu', '${PROF}', 'Prof. Kavita Sharma', 'instructor');
+
 
         INSERT INTO programs (code, name, department) VALUES 
         ('BTECH-CS', 'B.Tech Computer Science', 'cs'),

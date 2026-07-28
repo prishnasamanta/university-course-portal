@@ -77,21 +77,14 @@ function rowToObject(columns, values) {
 
 function seedSqlite(db) {
   try {
-    const hash = (pw) => bcrypt.hashSync(pw, 10);
-    const P = hash('pass1234');
-    const PROF = hash('prof1234');
-    const S123 = hash('student123');
-    const ST123 = hash('staff123');
-    const HD123 = hash('head123');
-    const ADM = hash('admin123');
+    const P = 'pass1234';
+    const PROF = 'prof1234';
+    const S123 = 'student123';
 
     db.exec(`
-      INSERT OR IGNORE INTO users (email, password_hash, name, role) VALUES
+      INSERT OR IGNORE INTO users (email, password, name, role) VALUES
       ('alice@student.uni.edu', '${S123}', 'Alice Johnson', 'student'),
       ('dr.smith@uni.edu', '${PROF}', 'Prof. John Smith', 'instructor'),
-      ('staff@uni.edu', '${ST123}', 'Sarah Williams', 'academic_staff'),
-      ('head@uni.edu', '${HD123}', 'Dr. Anita Sharma', 'dept_head'),
-      ('admin@uni.edu', '${ADM}', 'System Admin', 'admin'),
       
       ('ram.das@btech.uni.edu', '${P}', 'Ram Das', 'student'),
       ('priya.verma@btech.uni.edu', '${P}', 'Priya Verma', 'student'),
@@ -150,18 +143,6 @@ function seedSqlite(db) {
       (7, 'Semester 7', 2025, 0, 0, 0),
       (8, 'Semester 8', 2025, 0, 0, 0);
     `);
-
-    db.exec(`
-      INSERT OR IGNORE INTO academic_staff (user_id, staff_code, office_room) VALUES
-      ((SELECT id FROM users WHERE email='staff@uni.edu'), 'STF001', 'Room 102');
-
-      INSERT OR IGNORE INTO dept_heads (user_id, department, head_code) VALUES
-      ((SELECT id FROM users WHERE email='head@uni.edu'), 'cs', 'HOD001');
-
-      INSERT OR IGNORE INTO admins (user_id, admin_code) VALUES
-      ((SELECT id FROM users WHERE email='admin@uni.edu'), 'ADM001');
-    `);
-
     db.exec(`
       INSERT OR IGNORE INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id) VALUES 
       ((SELECT id FROM users WHERE email='alice@student.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2022, 'CS22001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
