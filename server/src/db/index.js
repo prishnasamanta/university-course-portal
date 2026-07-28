@@ -16,8 +16,16 @@ let initPromise = null;
 function convertSqlForPostgres(sql) {
   let paramIndex = 1;
   let pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
+  // Handle SQLite-specific syntax
   pgSql = pgSql.replace(/INSERT OR IGNORE INTO/gi, 'INSERT INTO');
+  pgSql = pgSql.replace(/INSERT OR REPLACE INTO/gi, 'INSERT INTO');
+  pgSql = pgSql.replace(/datetime\('now'\)/gi, 'CURRENT_TIMESTAMP');
+  pgSql = pgSql.replace(/AUTOINCREMENT/gi, '');
+  
   if (sql.match(/INSERT OR IGNORE INTO/i) && !pgSql.match(/ON CONFLICT/i)) {
+    pgSql += ' ON CONFLICT DO NOTHING';
+  }
+  if (sql.match(/INSERT OR REPLACE INTO/i) && !pgSql.match(/ON CONFLICT/i)) {
     pgSql += ' ON CONFLICT DO NOTHING';
   }
   return pgSql;
@@ -26,16 +34,29 @@ function convertSqlForPostgres(sql) {
 function syncToPostgres(sql, params = []) {
   const pool = getPostgresPool();
   if (!pool) return;
+  
+  // Skip read-only queries, PRAGMA, and internal SQLite queries
+  const trimmed = sql.trim().toUpperCase();
+  if (trimmed.startsWith('SELECT') || 
+      trimmed.startsWith('PRAGMA') || 
+      trimmed.startsWith('CREATE') ||
+      trimmed.includes('LAST_INSERT_ROWID') ||
+      trimmed.includes('SQLITE_SEQUENCE')) {
+    return;
+  }
+  
   try {
     const pgSql = convertSqlForPostgres(sql);
     pool.query(pgSql, params)
       .then((res) => {
-        console.log(`[PostgreSQL Live Write SUCCESS]: (${res.rowCount} row(s) updated) | SQL: ${pgSql.slice(0, 80)}`);
+        console.log(`[PG Sync OK] ${res.rowCount} row(s) | ${pgSql.slice(0, 100)}`);
       })
       .catch((err) => {
-        console.warn(`[PostgreSQL Live Write Notice]: ${err.message} | SQL: ${pgSql.slice(0, 80)}`);
+        console.warn(`[PG Sync FAIL] ${err.message} | ${pgSql.slice(0, 100)}`);
       });
-  } catch (e) {}
+  } catch (e) {
+    console.warn(`[PG Sync Error] ${e.message}`);
+  }
 }
 
 function saveDb() {
@@ -255,6 +276,8 @@ function createWrapper(db) {
     exec(sql) {
       db.exec(sql);
       saveDb();
+      // Mirror write to PostgreSQL
+      syncToPostgres(sql);
     },
     prepare(sql) {
       return {
@@ -266,6 +289,8 @@ function createWrapper(db) {
             lastInsertRowid = result[0]?.values[0]?.[0] ?? 0;
           } catch (e) {}
           saveDb();
+          // Mirror write to PostgreSQL
+          syncToPostgres(sql, params);
           return { lastInsertRowid, changes: db.getRowsModified() };
         },
         get(...params) {
