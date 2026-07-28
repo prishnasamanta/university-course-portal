@@ -89,15 +89,15 @@ router.post('/register', async (req, res) => {
       const defaultProgram = db.prepare('SELECT id FROM programs LIMIT 1').get()?.id || 1;
       const rollNo = `STU${numericId}${Math.floor(Math.random() * 1000)}`;
       db.prepare(`
-        INSERT OR IGNORE INTO students (user_id, program_id, batch_year, roll_number, profile_completed)
-        VALUES (?, ?, ?, ?, 0)
-      `).run(numericId, defaultProgram, new Date().getFullYear(), rollNo);
+        INSERT OR IGNORE INTO students (user_id, email, name, password_hash, program_id, batch_year, roll_number, profile_completed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+      `).run(numericId, email, name, password_hash, defaultProgram, new Date().getFullYear(), rollNo);
     } else if (role === 'instructor') {
       const empId = `EMP${numericId}${Math.floor(Math.random() * 1000)}`;
       db.prepare(`
-        INSERT OR IGNORE INTO instructors (user_id, department, employee_id, profile_completed)
-        VALUES (?, ?, ?, 0)
-      `).run(numericId, 'Computer Science', empId);
+        INSERT OR IGNORE INTO instructors (user_id, email, name, password_hash, department, employee_id, profile_completed)
+        VALUES (?, ?, ?, ?, ?, ?, 0)
+      `).run(numericId, email, name, password_hash, 'Computer Science', empId);
     }
 
     const newUser = {

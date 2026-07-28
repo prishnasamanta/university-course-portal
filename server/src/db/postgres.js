@@ -66,6 +66,9 @@ export async function initPostgres() {
       CREATE TABLE IF NOT EXISTS students (
         id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        email VARCHAR(255),
+        name VARCHAR(255),
+        password_hash VARCHAR(255),
         program_id INTEGER REFERENCES programs(id),
         batch_year INTEGER NOT NULL,
         roll_number VARCHAR(100) UNIQUE NOT NULL,
@@ -78,6 +81,9 @@ export async function initPostgres() {
       CREATE TABLE IF NOT EXISTS instructors (
         id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        email VARCHAR(255),
+        name VARCHAR(255),
+        password_hash VARCHAR(255),
         department VARCHAR(100) NOT NULL,
         employee_id VARCHAR(100) UNIQUE NOT NULL,
         profile_completed INTEGER DEFAULT 0
@@ -86,6 +92,9 @@ export async function initPostgres() {
       CREATE TABLE IF NOT EXISTS academic_staff (
         id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        email VARCHAR(255),
+        name VARCHAR(255),
+        password_hash VARCHAR(255),
         staff_code VARCHAR(100) UNIQUE NOT NULL,
         office_room VARCHAR(100)
       );
@@ -93,6 +102,9 @@ export async function initPostgres() {
       CREATE TABLE IF NOT EXISTS dept_heads (
         id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        email VARCHAR(255),
+        name VARCHAR(255),
+        password_hash VARCHAR(255),
         department VARCHAR(100) NOT NULL,
         head_code VARCHAR(100) UNIQUE NOT NULL
       );
@@ -100,6 +112,9 @@ export async function initPostgres() {
       CREATE TABLE IF NOT EXISTS admins (
         id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        email VARCHAR(255),
+        name VARCHAR(255),
+        password_hash VARCHAR(255),
         admin_code VARCHAR(100) UNIQUE NOT NULL
       );
 
@@ -308,6 +323,28 @@ export async function initPostgres() {
       WHERE workflow_status = 'published' AND grade_point IS NOT NULL
       GROUP BY student_id;
     `);
+
+    // Add email/name/password_hash columns to role tables if they don't exist yet
+    const roleTables = ['students', 'instructors', 'academic_staff', 'dept_heads', 'admins'];
+    for (const table of roleTables) {
+      for (const col of ['email', 'name', 'password_hash']) {
+        await client.query(`
+          ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} VARCHAR(255)
+        `).catch(() => {});
+      }
+    }
+
+    // Backfill email/name/password_hash in role tables from users table
+    for (const table of roleTables) {
+      await client.query(`
+        UPDATE ${table} SET 
+          email = u.email, 
+          name = u.name, 
+          password_hash = u.password_hash 
+        FROM users u 
+        WHERE ${table}.user_id = u.id AND ${table}.email IS NULL
+      `).catch(() => {});
+    }
 
     // Check if seeded
     const countRes = await client.query('SELECT COUNT(*) FROM users');
