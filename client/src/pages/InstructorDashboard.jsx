@@ -411,7 +411,7 @@ export default function InstructorDashboard() {
                         <td><strong>{r.course_code} — {r.course_title}</strong></td>
                         <td>{r.roll_number}</td>
                         <td>{r.student_name}</td>
-                        <td>{r.reason}</td>
+                        <td>{r.student_reason || r.reason}</td>
                         <td>{r.old_value != null ? `${r.old_value} / 100` : '—'}</td>
                         <td>
                           <input

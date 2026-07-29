@@ -241,6 +241,24 @@ function seedSqlite(db) {
       ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='STAT201'), 4, '14:00', '16:00'),
       ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='STAT202'), 5, '14:00', '16:00'),
       ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='STAT203'), 5, '11:00', '13:00');
+
+      INSERT OR IGNORE INTO enrollments (student_id, section_id, chosen_slot_id, status) VALUES
+      ((SELECT id FROM students WHERE user_id=(SELECT id FROM users WHERE email='alice@student.uni.edu')), (SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS101'), (SELECT id FROM section_schedule_slots WHERE section_id=(SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS101') LIMIT 1), 'registered'),
+      ((SELECT id FROM students WHERE user_id=(SELECT id FROM users WHERE email='ram.das@btech.uni.edu')), (SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS101'), (SELECT id FROM section_schedule_slots WHERE section_id=(SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS101') LIMIT 1), 'registered');
+
+      INSERT OR IGNORE INTO result_workflow (enrollment_id, status) VALUES
+      (1, 'checked_pending_verification'),
+      (2, 'checked_pending_verification');
+
+      INSERT OR IGNORE INTO assessment_components (section_id, name, max_marks, weight_percent) VALUES
+      ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS101'), 'Final Exam', 100, 100);
+
+      INSERT OR IGNORE INTO marks (enrollment_id, component_id, marks_obtained, entered_by) VALUES
+      (1, 1, 78, (SELECT id FROM users WHERE email='dr.smith@uni.edu')),
+      (2, 1, 82, (SELECT id FROM users WHERE email='dr.smith@uni.edu'));
+
+      INSERT OR IGNORE INTO marks_revision_requests (mark_id, requested_by, reason, student_reason, old_value, status) VALUES
+      (1, (SELECT id FROM users WHERE email='alice@student.uni.edu'), 'Requesting recheck for Question 4 grading calculation', 'Requesting recheck for Question 4 grading calculation', 78, 'pending_staff_review');
     `);
 
     saveDb();

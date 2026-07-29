@@ -855,7 +855,7 @@ export default function AdminDashboard() {
                   <td><strong>{r.course_code}</strong></td>
                   <td>{r.student_name}</td>
                   <td>{r.roll_number}</td>
-                  <td>{r.reason}</td>
+                  <td>{r.student_reason || r.reason}</td>
                   <td>{r.old_value ?? '—'}</td>
                   <td><strong>{r.new_value ?? '—'}</strong></td>
                   <td><span className="badge">{r.status}</span></td>

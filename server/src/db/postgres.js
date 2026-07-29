@@ -212,6 +212,7 @@ export async function initPostgres() {
         mark_id INTEGER REFERENCES marks(id) ON DELETE CASCADE,
         requested_by INTEGER REFERENCES users(id),
         reason TEXT NOT NULL,
+        student_reason TEXT,
         old_value NUMERIC,
         new_value NUMERIC,
         status VARCHAR(50) DEFAULT 'pending_staff_review',
@@ -311,6 +312,7 @@ export async function initPostgres() {
 
     await client.query(`ALTER TABLE marks_revision_requests ADD COLUMN IF NOT EXISTS forwarded_by INTEGER REFERENCES users(id)`).catch(() => {});
     await client.query(`ALTER TABLE marks_revision_requests ADD COLUMN IF NOT EXISTS instructor_remarks TEXT`).catch(() => {});
+    await client.query(`ALTER TABLE marks_revision_requests ADD COLUMN IF NOT EXISTS student_reason TEXT`).catch(() => {});
     await client.query(`ALTER TABLE sections ADD COLUMN IF NOT EXISTS exam_started INTEGER DEFAULT 0`).catch(() => {});
 
     // Fix sections.instructor_id FK to reference users instead of instructors

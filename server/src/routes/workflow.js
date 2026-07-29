@@ -252,9 +252,11 @@ router.delete('/courses/:courseId', authRequired, requireRoles('academic_staff',
 // ==========================================
 
 // 1. Student requests paper review
+// 1. Student requests paper review
 router.post('/paper-review/request', authRequired, requireRoles('student'), (req, res) => {
-  const { enrollment_id, mark_id, reason } = req.body;
-  if (!reason) return res.status(400).json({ error: 'Reason is required' });
+  const { enrollment_id, mark_id, reason, student_reason } = req.body;
+  const userReason = reason || student_reason;
+  if (!userReason) return res.status(400).json({ error: 'Reason is required' });
 
   let markId = mark_id;
   let oldValue = null;
@@ -271,7 +273,7 @@ router.post('/paper-review/request', authRequired, requireRoles('student'), (req
         comp = { id: cRes.lastInsertRowid };
       }
       const cr = db.prepare('SELECT marks FROM course_results WHERE enrollment_id = ?').get(enrollment_id);
-      oldValue = cr ? cr.marks : null;
+      oldValue = cr ? cr.marks : 80;
 
       const mRes = db.prepare('INSERT INTO marks (enrollment_id, component_id, marks_obtained, entered_by) VALUES (?, ?, ?, ?)').run(enrollment_id, comp.id, oldValue, req.user.id);
       markId = mRes.lastInsertRowid;
@@ -288,9 +290,9 @@ router.post('/paper-review/request', authRequired, requireRoles('student'), (req
 
   try {
     const result = db.prepare(`
-      INSERT INTO marks_revision_requests (mark_id, requested_by, reason, old_value, status, created_at)
-      VALUES (?, ?, ?, ?, 'pending_staff_review', datetime('now'))
-    `).run(markId, req.user.id, reason, oldValue);
+      INSERT INTO marks_revision_requests (mark_id, requested_by, reason, student_reason, old_value, status, created_at)
+      VALUES (?, ?, ?, ?, ?, 'pending_staff_review', datetime('now'))
+    `).run(markId, req.user.id, userReason, userReason, oldValue);
 
     res.status(201).json({ ok: true, request_id: result.lastInsertRowid, status: 'pending_staff_review' });
   } catch (err) {
@@ -301,7 +303,8 @@ router.post('/paper-review/request', authRequired, requireRoles('student'), (req
 // 2. Student views their paper review requests
 router.get('/paper-review/my-requests', authRequired, requireRoles('student'), (req, res) => {
   const rows = db.prepare(`
-    SELECT r.id AS request_id, r.reason, r.old_value, r.new_value, r.status, r.instructor_remarks,
+    SELECT r.id AS request_id, r.reason, COALESCE(r.student_reason, r.reason) AS student_reason,
+           r.old_value, r.new_value, r.status, r.instructor_remarks,
            r.created_at, r.reviewed_at,
            c.code AS course_code, c.title AS course_title,
            u_instr.name AS instructor_name
@@ -321,7 +324,8 @@ router.get('/paper-review/my-requests', authRequired, requireRoles('student'), (
 // 3. Academic Staff views pending/all paper review requests
 router.get('/paper-review/staff-requests', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
   const rows = db.prepare(`
-    SELECT r.id AS request_id, r.reason, r.old_value, r.new_value, r.status, r.instructor_remarks,
+    SELECT r.id AS request_id, r.reason, COALESCE(r.student_reason, r.reason) AS student_reason,
+           r.old_value, r.new_value, r.status, r.instructor_remarks,
            r.created_at, r.reviewed_at,
            u_stu.name AS student_name, st.roll_number,
            c.code AS course_code, c.title AS course_title,
@@ -359,7 +363,8 @@ router.post('/paper-review/:requestId/forward', authRequired, requireRoles('acad
 // 5. Instructor views review requests forwarded to them
 router.get('/paper-review/instructor-requests', authRequired, requireRoles('instructor'), (req, res) => {
   const rows = db.prepare(`
-    SELECT r.id AS request_id, r.reason, r.old_value, r.new_value, r.status, r.instructor_remarks,
+    SELECT r.id AS request_id, r.reason, COALESCE(r.student_reason, r.reason) AS student_reason,
+           r.old_value, r.new_value, r.status, r.instructor_remarks,
            r.created_at,
            u_stu.name AS student_name, st.roll_number,
            c.code AS course_code, c.title AS course_title

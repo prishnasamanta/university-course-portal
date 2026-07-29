@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS marks_revision_requests (
   mark_id INTEGER NOT NULL REFERENCES marks(id) ON DELETE CASCADE,
   requested_by INTEGER NOT NULL REFERENCES users(id),
   reason TEXT NOT NULL,
+  student_reason TEXT,
   old_value REAL,
   new_value REAL,
   status TEXT NOT NULL DEFAULT 'pending_staff_review' CHECK (status IN ('pending', 'pending_staff_review', 'forwarded_to_instructor', 'instructor_rechecked', 'approved', 'rejected')),
