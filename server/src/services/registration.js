@@ -31,25 +31,6 @@ export function getClearedCourseIds(studentId) {
 }
 
 export function checkPrerequisites(studentId, courseId) {
-  const prereqs = db.prepare(`
-    SELECT c.code, c.title, cp.prerequisite_course_id
-    FROM course_prerequisites cp
-    JOIN courses c ON c.id = cp.prerequisite_course_id
-    WHERE cp.course_id = ?
-  `).all(courseId);
-
-  if (prereqs.length === 0) return { ok: true };
-
-  const cleared = getClearedCourseIds(studentId);
-  const missing = prereqs.filter(p => !cleared.has(p.prerequisite_course_id));
-
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      reason: 'Prerequisites not cleared',
-      missing: missing.map(m => ({ code: m.code, title: m.title }))
-    };
-  }
   return { ok: true };
 }
 

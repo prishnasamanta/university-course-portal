@@ -2,6 +2,25 @@
 
 All notable changes to the backend are documented here.
 
+## [2026-07-29] Paper Review Workflow, Course Creation Fix & Prerequisite Cleanup
+
+### Paper Review Workflow
+- Added complete multi-stage paper recheck pipeline:
+  1. Student requests paper review (`/api/workflow/paper-review/request`)
+  2. Student tracks status (`/api/workflow/paper-review/my-requests`)
+  3. Academic Staff reviews pending requests (`/api/workflow/paper-review/staff-requests`)
+  4. Academic Staff forwards to assigned Instructor (`/api/workflow/paper-review/:id/forward`)
+  5. Instructor re-checks paper & updates marks/remarks (`/api/workflow/paper-review/instructor-requests`, `/recheck`)
+  6. Academic Staff finalizes approval/rejection (`/api/workflow/paper-review/:id/finalize`)
+  7. Auto-recomputes grades and updates `course_results`, `marks`, `enrollment_grades`, and PostgreSQL live sync.
+
+### Prerequisite Removal
+- Completely removed redundant `course_prerequisites` table across SQLite schema, PostgreSQL migrations, and registration validation.
+
+### Fixes & Enhancements
+- Fixed `POST /courses` route try/catch handling to prevent 500 Internal Server Errors when adding courses.
+- Enforced real-time `enrollments` table updates with `chosen_slot_id` upon student course registration.
+
 ---
 
 ## [2026-07-29] Database Simplification & Schema Refactor

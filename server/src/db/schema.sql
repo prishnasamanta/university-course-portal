@@ -62,13 +62,6 @@ CREATE TABLE IF NOT EXISTS courses (
   is_published INTEGER NOT NULL DEFAULT 1
 );
 
-CREATE TABLE IF NOT EXISTS course_prerequisites (
-  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-  prerequisite_course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-  PRIMARY KEY (course_id, prerequisite_course_id),
-  CHECK (course_id != prerequisite_course_id)
-);
-
 CREATE TABLE IF NOT EXISTS sections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   course_id INTEGER NOT NULL REFERENCES courses(id),
@@ -136,8 +129,10 @@ CREATE TABLE IF NOT EXISTS marks_revision_requests (
   requested_by INTEGER NOT NULL REFERENCES users(id),
   reason TEXT NOT NULL,
   old_value REAL,
-  new_value REAL NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  new_value REAL,
+  status TEXT NOT NULL DEFAULT 'pending_staff_review' CHECK (status IN ('pending', 'pending_staff_review', 'forwarded_to_instructor', 'instructor_rechecked', 'approved', 'rejected')),
+  forwarded_by INTEGER REFERENCES users(id),
+  instructor_remarks TEXT,
   reviewed_by INTEGER REFERENCES users(id),
   reviewed_at TEXT,
   created_at TEXT DEFAULT (datetime('now'))

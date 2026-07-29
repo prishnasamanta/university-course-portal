@@ -73,21 +73,8 @@ router.get('/courses', authRequired, (req, res) => {
   const courses = db.prepare('SELECT * FROM courses WHERE is_published = 1 ORDER BY code').all();
 
   const withPrereqs = courses.map(c => ({
-
     ...c,
-
-    prerequisites: db.prepare(`
-
-      SELECT c2.id, c2.code, c2.title
-
-      FROM course_prerequisites cp
-
-      JOIN courses c2 ON c2.id = cp.prerequisite_course_id
-
-      WHERE cp.course_id = ?
-
-    `).all(c.id)
-
+    prerequisites: []
   }));
 
   res.json(withPrereqs);
@@ -158,13 +145,7 @@ router.get('/courses/:courseId/semester/:semesterId', authRequired, (req, res) =
 
 
 
-  const prerequisites = db.prepare(`
-
-    SELECT c.id, c.code, c.title FROM course_prerequisites cp
-
-    JOIN courses c ON c.id = cp.prerequisite_course_id WHERE cp.course_id = ?
-
-  `).all(course.id);
+  const prerequisites = [];
 
 
 
@@ -498,45 +479,29 @@ router.post('/sections', authRequired, requireRoles('admin', 'academic_staff', '
 
 
 router.post('/courses', authRequired, requireRoles('admin', 'academic_staff', 'dept_head'), (req, res) => {
-
   const {
-
     code, title, credits, description, department, degree_level,
-
-    required_previous_degree, min_previous_grade, syllabus, prerequisite_ids
-
+    required_previous_degree, min_previous_grade, syllabus
   } = req.body;
 
-
-
-  const result = db.prepare(`
-
-    INSERT INTO courses (code, title, credits, description, department, degree_level,
-
-      required_previous_degree, min_previous_grade, syllabus, is_published)
-
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-
-  `).run(
-
-    code, title, credits, description || null, department || 'cs', degree_level || 'btech',
-
-    required_previous_degree || null, min_previous_grade || null, syllabus || null
-
-  );
-
-
-
-  if (prerequisite_ids?.length) {
-
-    const insert = db.prepare('INSERT INTO course_prerequisites (course_id, prerequisite_course_id) VALUES (?, ?)');
-
-    for (const pid of prerequisite_ids) insert.run(result.lastInsertRowid, pid);
-
+  if (!code || !title || !credits) {
+    return res.status(400).json({ error: 'Code, title, and credits are required.' });
   }
 
-  res.status(201).json({ id: result.lastInsertRowid });
+  try {
+    const result = db.prepare(`
+      INSERT INTO courses (code, title, credits, description, department, degree_level,
+        required_previous_degree, min_previous_grade, syllabus, is_published)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `).run(
+      code, title, Number(credits), description || null, department || 'cs', degree_level || 'btech',
+      required_previous_degree || null, min_previous_grade || null, syllabus || null
+    );
 
+    res.status(201).json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Failed to create course' });
+  }
 });
 
 

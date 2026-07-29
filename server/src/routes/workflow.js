@@ -5,6 +5,7 @@ import {
   forwardSectionToHod, publishSectionResults, hodReviewEnrollment, hodApproveAll, STATUS_LABELS
 } from '../services/resultWorkflow.js';
 import { DAY_NAMES } from '../services/registration.js';
+import { computeEnrollmentGrade } from '../services/gpa.js';
 
 const router = Router();
 
@@ -232,6 +233,191 @@ router.delete('/courses/:courseId', authRequired, requireRoles('academic_staff',
 
   db.prepare('DELETE FROM courses WHERE id = ?').run(course.id);
   res.json({ ok: true, deleted_id: course.id });
+});
+
+// ==========================================
+// --- PAPER REVIEW WORKFLOW ENDPOINTS ---
+// ==========================================
+
+// 1. Student requests paper review
+router.post('/paper-review/request', authRequired, requireRoles('student'), (req, res) => {
+  const { enrollment_id, mark_id, reason } = req.body;
+  if (!reason) return res.status(400).json({ error: 'Reason is required' });
+
+  let markId = mark_id;
+  let oldValue = null;
+
+  if (!markId && enrollment_id) {
+    let mark = db.prepare('SELECT * FROM marks WHERE enrollment_id = ? LIMIT 1').get(enrollment_id);
+    if (!mark) {
+      const enrollment = db.prepare('SELECT * FROM enrollments WHERE id = ?').get(enrollment_id);
+      if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
+
+      let comp = db.prepare('SELECT * FROM assessment_components WHERE section_id = ? LIMIT 1').get(enrollment.section_id);
+      if (!comp) {
+        const cRes = db.prepare('INSERT INTO assessment_components (section_id, name, max_marks, weight_percent) VALUES (?, ?, ?, ?)').run(enrollment.section_id, 'Final Exam', 100, 100);
+        comp = { id: cRes.lastInsertRowid };
+      }
+      const cr = db.prepare('SELECT marks FROM course_results WHERE enrollment_id = ?').get(enrollment_id);
+      oldValue = cr ? cr.marks : null;
+
+      const mRes = db.prepare('INSERT INTO marks (enrollment_id, component_id, marks_obtained, entered_by) VALUES (?, ?, ?, ?)').run(enrollment_id, comp.id, oldValue, req.user.id);
+      markId = mRes.lastInsertRowid;
+    } else {
+      markId = mark.id;
+      oldValue = mark.marks_obtained;
+    }
+  } else if (markId) {
+    const mark = db.prepare('SELECT * FROM marks WHERE id = ?').get(markId);
+    if (mark) oldValue = mark.marks_obtained;
+  }
+
+  if (!markId) return res.status(400).json({ error: 'Enrollment or mark required' });
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO marks_revision_requests (mark_id, requested_by, reason, old_value, status, created_at)
+      VALUES (?, ?, ?, ?, 'pending_staff_review', datetime('now'))
+    `).run(markId, req.user.id, reason, oldValue);
+
+    res.status(201).json({ ok: true, request_id: result.lastInsertRowid, status: 'pending_staff_review' });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Failed to submit review request' });
+  }
+});
+
+// 2. Student views their paper review requests
+router.get('/paper-review/my-requests', authRequired, requireRoles('student'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.id AS request_id, r.reason, r.old_value, r.new_value, r.status, r.instructor_remarks,
+           r.created_at, r.reviewed_at,
+           c.code AS course_code, c.title AS course_title,
+           u_instr.name AS instructor_name
+    FROM marks_revision_requests r
+    JOIN marks m ON m.id = r.mark_id
+    JOIN enrollments e ON e.id = m.enrollment_id
+    JOIN sections s ON s.id = e.section_id
+    JOIN courses c ON c.id = s.course_id
+    LEFT JOIN users u_instr ON u_instr.id = s.instructor_id
+    WHERE r.requested_by = ?
+    ORDER BY r.created_at DESC
+  `).all(req.user.id);
+
+  res.json(rows);
+});
+
+// 3. Academic Staff views pending/all paper review requests
+router.get('/paper-review/staff-requests', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.id AS request_id, r.reason, r.old_value, r.new_value, r.status, r.instructor_remarks,
+           r.created_at, r.reviewed_at,
+           u_stu.name AS student_name, st.roll_number,
+           c.code AS course_code, c.title AS course_title,
+           u_instr.id AS instructor_id, u_instr.name AS instructor_name,
+           u_fw.name AS forwarded_by_name
+    FROM marks_revision_requests r
+    JOIN marks m ON m.id = r.mark_id
+    JOIN enrollments e ON e.id = m.enrollment_id
+    JOIN students st ON st.id = e.student_id
+    JOIN users u_stu ON u_stu.id = st.user_id
+    JOIN sections s ON s.id = e.section_id
+    JOIN courses c ON c.id = s.course_id
+    LEFT JOIN users u_instr ON u_instr.id = s.instructor_id
+    LEFT JOIN users u_fw ON u_fw.id = r.forwarded_by
+    ORDER BY r.created_at DESC
+  `).all();
+
+  res.json(rows);
+});
+
+// 4. Academic Staff forwards review request to instructor
+router.post('/paper-review/:requestId/forward', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const request = db.prepare('SELECT * FROM marks_revision_requests WHERE id = ?').get(req.params.requestId);
+  if (!request) return res.status(404).json({ error: 'Review request not found' });
+
+  db.prepare(`
+    UPDATE marks_revision_requests
+    SET status = 'forwarded_to_instructor', forwarded_by = ?
+    WHERE id = ?
+  `).run(req.user.id, request.id);
+
+  res.json({ ok: true, status: 'forwarded_to_instructor' });
+});
+
+// 5. Instructor views review requests forwarded to them
+router.get('/paper-review/instructor-requests', authRequired, requireRoles('instructor'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.id AS request_id, r.reason, r.old_value, r.new_value, r.status, r.instructor_remarks,
+           r.created_at,
+           u_stu.name AS student_name, st.roll_number,
+           c.code AS course_code, c.title AS course_title
+    FROM marks_revision_requests r
+    JOIN marks m ON m.id = r.mark_id
+    JOIN enrollments e ON e.id = m.enrollment_id
+    JOIN students st ON st.id = e.student_id
+    JOIN users u_stu ON u_stu.id = st.user_id
+    JOIN sections s ON s.id = e.section_id
+    JOIN courses c ON c.id = s.course_id
+    WHERE s.instructor_id = ? AND r.status IN ('forwarded_to_instructor', 'instructor_rechecked')
+    ORDER BY r.created_at DESC
+  `).all(req.user.id);
+
+  res.json(rows);
+});
+
+// 6. Instructor re-checks paper and updates marks
+router.post('/paper-review/:requestId/recheck', authRequired, requireRoles('instructor'), (req, res) => {
+  const { new_value, instructor_remarks } = req.body;
+  if (new_value === undefined || new_value === null) {
+    return res.status(400).json({ error: 'new_value is required' });
+  }
+
+  const request = db.prepare('SELECT * FROM marks_revision_requests WHERE id = ?').get(req.params.requestId);
+  if (!request) return res.status(404).json({ error: 'Review request not found' });
+
+  db.prepare(`
+    UPDATE marks_revision_requests
+    SET new_value = ?, instructor_remarks = ?, status = 'instructor_rechecked'
+    WHERE id = ?
+  `).run(Number(new_value), instructor_remarks || null, request.id);
+
+  res.json({ ok: true, status: 'instructor_rechecked' });
+});
+
+// 7. Academic Staff finalizes review request (approve/reject)
+router.post('/paper-review/:requestId/finalize', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const { decision } = req.body;
+  if (!['approve', 'reject'].includes(decision)) {
+    return res.status(400).json({ error: 'decision must be approve or reject' });
+  }
+
+  const request = db.prepare('SELECT * FROM marks_revision_requests WHERE id = ?').get(req.params.requestId);
+  if (!request) return res.status(404).json({ error: 'Review request not found' });
+
+  const finalStatus = decision === 'approve' ? 'approved' : 'rejected';
+
+  db.prepare(`
+    UPDATE marks_revision_requests
+    SET status = ?, reviewed_by = ?, reviewed_at = datetime('now')
+    WHERE id = ?
+  `).run(finalStatus, req.user.id, request.id);
+
+  if (decision === 'approve' && request.new_value !== null && request.new_value !== undefined) {
+    db.prepare('UPDATE marks SET marks_obtained = ?, finalized = 1 WHERE id = ?').run(request.new_value, request.mark_id);
+
+    const mark = db.prepare('SELECT enrollment_id FROM marks WHERE id = ?').get(request.mark_id);
+    if (mark) {
+      db.prepare(`
+        INSERT INTO course_results (enrollment_id, marks, entered_by, entered_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(enrollment_id) DO UPDATE SET marks = excluded.marks, entered_at = datetime('now')
+      `).run(mark.enrollment_id, request.new_value, req.user.id);
+
+      computeEnrollmentGrade(mark.enrollment_id);
+    }
+  }
+
+  res.json({ ok: true, status: finalStatus });
 });
 
 export default router;

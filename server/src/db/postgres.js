@@ -166,12 +166,6 @@ export async function initPostgres() {
         grade_point NUMERIC NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS course_prerequisites (
-        course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
-        prerequisite_course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
-        PRIMARY KEY (course_id, prerequisite_course_id)
-      );
-
       CREATE TABLE IF NOT EXISTS instructor_teaching_preferences (
         id SERIAL PRIMARY KEY,
         instructor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -208,8 +202,10 @@ export async function initPostgres() {
         requested_by INTEGER REFERENCES users(id),
         reason TEXT NOT NULL,
         old_value NUMERIC,
-        new_value NUMERIC NOT NULL,
-        status VARCHAR(50) DEFAULT 'pending',
+        new_value NUMERIC,
+        status VARCHAR(50) DEFAULT 'pending_staff_review',
+        forwarded_by INTEGER REFERENCES users(id),
+        instructor_remarks TEXT,
         reviewed_by INTEGER REFERENCES users(id),
         reviewed_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -298,9 +294,12 @@ export async function initPostgres() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_completed INTEGER DEFAULT 0`).catch(() => {});
 
     // Drop removed tables (safe - no FK references)
-    for (const table of ['admins', 'dept_heads', 'academic_staff', 'instructors']) {
+    for (const table of ['admins', 'dept_heads', 'academic_staff', 'instructors', 'course_prerequisites']) {
       await client.query(`DROP TABLE IF EXISTS ${table} CASCADE`).catch(() => {});
     }
+
+    await client.query(`ALTER TABLE marks_revision_requests ADD COLUMN IF NOT EXISTS forwarded_by INTEGER REFERENCES users(id)`).catch(() => {});
+    await client.query(`ALTER TABLE marks_revision_requests ADD COLUMN IF NOT EXISTS instructor_remarks TEXT`).catch(() => {});
 
     // Fix sections.instructor_id FK to reference users instead of instructors
     await client.query(`
