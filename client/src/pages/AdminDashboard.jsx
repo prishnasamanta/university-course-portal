@@ -34,8 +34,6 @@ export default function AdminDashboard() {
 
   // Semester tab state
   const [selectedDegree, setSelectedDegree] = useState(null);
-  const [showSemForm, setShowSemForm] = useState(false);
-  const [newSem, setNewSem] = useState({ name: 'Semester 1', year: new Date().getFullYear() + 1 });
 
   // Course catalog state
   const [catalogLevelFilter, setCatalogLevelFilter] = useState('all');
@@ -91,16 +89,38 @@ export default function AdminDashboard() {
   // ─── FLASH MESSAGE ───
   const flash = (type, text) => {
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 4000);
+    setTimeout(() => setMessage(null), 5000);
   };
 
   // ─── SEMESTER HANDLERS ───
-  const createSemester = async (e) => {
-    e.preventDefault();
+  const createNextSemester = async () => {
+    if (!selectedDegree) return;
+
+    // Get semesters ordered by number
+    const sortedSems = [...semesters].sort((a, b) => (a.semester_number || a.id) - (b.semester_number || b.id));
+    const lastSem = sortedSems[sortedSems.length - 1];
+
+    if (lastSem) {
+      if (lastSem.registration_open === 1) {
+        flash('error', `Cannot create next semester: Registration for "${lastSem.name}" is still OPEN. Please close registration first.`);
+        return;
+      }
+      if (!lastSem.exams_completed) {
+        flash('error', `Cannot create next semester: Final exams for "${lastSem.name}" are NOT completed yet. Please mark exams done first.`);
+        return;
+      }
+    }
+
+    const nextNum = lastSem ? (lastSem.semester_number ? lastSem.semester_number + 1 : sortedSems.length + 1) : 1;
+    const nextSemData = {
+      name: `Semester ${nextNum}`,
+      year: new Date().getFullYear(),
+      semester_number: nextNum
+    };
+
     try {
-      await api.createSemester(newSem);
-      flash('success', `Created semester ${newSem.name} ${newSem.year}`);
-      setShowSemForm(false);
+      await api.createSemester(nextSemData);
+      flash('success', `Created ${nextSemData.name} for ${selectedDegree.label}!`);
       load();
     } catch (err) {
       flash('error', err.message);
@@ -359,23 +379,24 @@ export default function AdminDashboard() {
     return false;
   });
 
-  // ─── TABS CONFIG ───
+  // ─── TABS CONFIG (Role Dependent) ───
+  // Note: For Admin (`isAdmin === true`), remove Create Section, Exam Registration, and Results Workflow.
   const TABS = [
     { id: 'semesters', label: '📅 Semesters' },
     { id: 'catalog', label: '📚 Course Catalog' },
-    { id: 'sections', label: '📋 Create Section' },
+    ...(!isAdmin ? [{ id: 'sections', label: '📋 Create Section' }] : []),
     { id: 'users', label: `👥 User Accounts (${users.length})` },
-    { id: 'exams', label: `📝 Exam Registration${examRequests.length ? ` (${examRequests.length})` : ''}` },
+    ...(!isAdmin ? [{ id: 'exams', label: `📝 Exam Registration${examRequests.length ? ` (${examRequests.length})` : ''}` }] : []),
     { id: 'paper-reviews', label: `📄 Paper Reviews${paperReviewRequests.length ? ` (${paperReviewRequests.length})` : ''}` },
-    { id: 'workflow', label: '📊 Results Workflow' },
+    ...(!isAdmin ? [{ id: 'workflow', label: '📊 Results Workflow' }] : []),
     ...(isAdmin ? [{ id: 'removals', label: `⚠️ Removal Approvals (${removalRequests.filter(r => r.status === 'approved_by_hod').length})` }] : [])
   ];
 
   return (
     <div>
       <div className="page-header">
-        <h1>Academic Office</h1>
-        <p>Manage degree programs, courses, registration, exams, paper reviews, and user accounts</p>
+        <h1>{isAdmin ? 'System Administration' : 'Academic Office'}</h1>
+        <p>{isAdmin ? 'Manage user accounts, degrees, course catalog, paper reviews, and removal approvals' : 'Manage degree programs, courses, registration, exams, paper reviews, and user accounts'}</p>
       </div>
 
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
@@ -397,15 +418,11 @@ export default function AdminDashboard() {
       {/* ===== SEMESTERS TAB ===== */}
       {tab === 'semesters' && (
         <div>
-          <div className="degree-tiles" style={{ marginBottom: '1rem' }}>
-            <button
-              type="button"
-              className={`degree-tile ${!selectedDegree ? 'selected' : ''}`}
-              onClick={() => setSelectedDegree(null)}
-            >
-              <span className="degree-tile-icon">🌐</span>
-              <span className="degree-tile-label">All Degree Programs</span>
-            </button>
+          <div style={{ marginBottom:'0.75rem', fontWeight:600, color:'var(--muted)', fontSize:'0.9rem' }}>
+            Select a Degree Program:
+          </div>
+
+          <div className="degree-tiles" style={{ marginBottom: '1.25rem' }}>
             {DEGREE_TILES.map(deg => (
               <button
                 key={deg.code}
@@ -420,64 +437,55 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          <div className="card" style={{ borderLeft: selectedDegree ? `4px solid ${selectedDegree.color}` : '4px solid var(--primary)' }}>
-            <div className="card-header">
-              <h2>{selectedDegree ? `${selectedDegree.icon} ${selectedDegree.label} — Semesters` : '🌐 All Program Semesters'}</h2>
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowSemForm(!showSemForm)}>
-                {showSemForm ? 'Cancel' : '+ New Semester'}
-              </button>
+          {!selectedDegree ? (
+            <div className="card" style={{ textAlign:'center', padding:'3rem 2rem', color:'var(--muted)' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>🎓</div>
+              <h3>Please select a degree program above</h3>
+              <p>Click on any degree (B.Tech CS, M.Sc CS, M.Tech CS, B.Tech Eco, M.Sc Stat) to manage its semesters.</p>
             </div>
+          ) : (
+            <div className="card" style={{ borderLeft: `4px solid ${selectedDegree.color}` }}>
+              <div className="card-header">
+                <h2>{selectedDegree.icon} {selectedDegree.label} — Semesters</h2>
+                <button type="button" className="btn btn-primary btn-sm" onClick={createNextSemester}>
+                  + New Semester
+                </button>
+              </div>
 
-            {showSemForm && (
-              <form onSubmit={createSemester} style={{ display:'flex', gap:'0.75rem', alignItems:'flex-end', marginBottom:'1rem', flexWrap:'wrap' }}>
-                <label style={{ fontWeight:600, fontSize:'0.85rem' }}>
-                  Term
-                  <select value={newSem.name} onChange={e => setNewSem({...newSem, name: e.target.value})} style={{ display:'block', padding:'0.5rem', marginTop:'0.25rem', border:'1px solid var(--border)', borderRadius:6 }}>
-                    <option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option>
-                    <option>Semester 5</option><option>Semester 6</option><option>Semester 7</option><option>Semester 8</option>
-                  </select>
-                </label>
-                <label style={{ fontWeight:600, fontSize:'0.85rem' }}>
-                  Year
-                  <input type="number" value={newSem.year} onChange={e => setNewSem({...newSem, year: Number(e.target.value)})} style={{ display:'block', padding:'0.5rem', marginTop:'0.25rem', border:'1px solid var(--border)', borderRadius:6, width:80 }} />
-                </label>
-                <button type="submit" className="btn btn-primary">Create Semester</button>
-              </form>
-            )}
-
-            <table className="data-table">
-              <thead><tr><th>Semester</th><th>Status</th><th>Registration</th><th>Exams</th><th>Actions</th></tr></thead>
-              <tbody>
-                {semesters.map(s => (
-                  <tr key={s.id}>
-                    <td><strong>{s.name} {s.year}</strong></td>
-                    <td>{s.is_active ? <span className="badge success">Active</span> : <span className="badge">Inactive</span>}</td>
-                    <td>{s.registration_open ? <span className="badge success">Open</span> : <span className="badge">Closed</span>}</td>
-                    <td>{s.exams_completed ? <span className="badge success">Done</span> : '—'}</td>
-                    <td className="actions">
-                      <button
-                        type="button"
-                        className={`btn btn-sm ${s.registration_open ? 'btn-danger' : 'btn-primary'}`}
-                        onClick={() => toggleReg(s.id, s.registration_open)}
-                      >
-                        {s.registration_open ? '🔒 Close Reg' : '✅ Open Reg'}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-sm"
-                        onClick={() => api.toggleExamsCompleted(s.id, !s.exams_completed).then(load)}
-                      >
-                        {s.exams_completed ? 'Reopen Exams' : '📝 Mark Exams Done'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {semesters.length === 0 && (
-                  <tr><td colSpan={5} className="muted">No semesters yet — create one above</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              <table className="data-table">
+                <thead><tr><th>Semester</th><th>Status</th><th>Registration</th><th>Exams</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {semesters.map(s => (
+                    <tr key={s.id}>
+                      <td><strong>{s.name} {s.year}</strong></td>
+                      <td>{s.is_active ? <span className="badge success">Active</span> : <span className="badge">Inactive</span>}</td>
+                      <td>{s.registration_open ? <span className="badge success">Open</span> : <span className="badge">Closed</span>}</td>
+                      <td>{s.exams_completed ? <span className="badge success">Done</span> : '—'}</td>
+                      <td className="actions">
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${s.registration_open ? 'btn-danger' : 'btn-primary'}`}
+                          onClick={() => toggleReg(s.id, s.registration_open)}
+                        >
+                          {s.registration_open ? '🔒 Close Reg' : '✅ Open Reg'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => api.toggleExamsCompleted(s.id, !s.exams_completed).then(load)}
+                        >
+                          {s.exams_completed ? 'Reopen Exams' : '📝 Mark Exams Done'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {semesters.length === 0 && (
+                    <tr><td colSpan={5} className="muted">No semesters created yet. Click "+ New Semester" to create Semester 1.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -526,7 +534,7 @@ export default function AdminDashboard() {
                 <th>Code</th>
                 <th>Title</th>
                 <th>Credits</th>
-                <th>Degree & Dept</th>
+                <th>Degree &amp; Dept</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -603,11 +611,11 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ===== CREATE SECTION TAB ===== */}
-      {tab === 'sections' && (
+      {/* ===== CREATE SECTION TAB (Academic Staff Only) ===== */}
+      {!isAdmin && tab === 'sections' && (
         <div className="card">
           <div className="card-header">
-            <h2>📋 Create Course Section & Schedule</h2>
+            <h2>📋 Create Course Section &amp; Schedule</h2>
           </div>
           <form onSubmit={createSection} style={{ display:'grid', gap:'1rem' }}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'0.75rem' }}>
@@ -643,7 +651,7 @@ export default function AdminDashboard() {
 
             <div style={{ marginBottom:'1rem' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.5rem' }}>
-                <strong style={{ fontSize:'0.875rem' }}>Schedule Days & Timetable Slots ({newSection.slots.length} Days)</strong>
+                <strong style={{ fontSize:'0.875rem' }}>Schedule Days &amp; Timetable Slots ({newSection.slots.length} Days)</strong>
                 <button type="button" className="btn btn-outline btn-sm" onClick={addSlot}>+ Add Day</button>
               </div>
               {newSection.slots.map((slot, index) => (
@@ -752,8 +760,8 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ===== EXAM REGISTRATION TAB ===== */}
-      {tab === 'exams' && (
+      {/* ===== EXAM REGISTRATION TAB (Academic Staff Only) ===== */}
+      {!isAdmin && tab === 'exams' && (
         <div>
           {examRequests.length === 0 ? (
             <div className="card">
@@ -835,7 +843,7 @@ export default function AdminDashboard() {
       {tab === 'paper-reviews' && (
         <div className="card">
           <div className="card-header">
-            <h2>📄 Student Paper Review & Revision Requests</h2>
+            <h2>📄 Student Paper Review &amp; Revision Requests</h2>
           </div>
           <table className="data-table">
             <thead>
@@ -878,8 +886,8 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ===== RESULTS WORKFLOW TAB ===== */}
-      {tab === 'workflow' && (
+      {/* ===== RESULTS WORKFLOW TAB (Academic Staff Only) ===== */}
+      {!isAdmin && tab === 'workflow' && (
         <div>
           {LEVELS.map(level => {
             const levelSections = workflowSections.filter(s => (s.degree_level || 'btech') === level);

@@ -2,14 +2,6 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
-const DEGREE_TILES = [
-  { code: 'BTECH-CS', label: 'B.Tech Computer Science', dept: 'cs', level: 'btech', icon: '💻', color: '#4f46e5' },
-  { code: 'MSC-CS', label: 'M.Sc Computer Science', dept: 'cs', level: 'msc', icon: '🤖', color: '#0891b2' },
-  { code: 'MTECH-CS', label: 'M.Tech Computer Science', dept: 'cs', level: 'mtech', icon: '⚙️', color: '#7c3aed' },
-  { code: 'BTECH-ECO', label: 'B.Tech Economics', dept: 'eco', level: 'btech', icon: '📈', color: '#059669' },
-  { code: 'MSC-STAT', label: 'M.Sc Statistics', dept: 'stat', level: 'msc', icon: '📊', color: '#d97706' },
-];
-
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 const STATUS_DISPLAY = {
@@ -23,10 +15,10 @@ const STATUS_DISPLAY = {
 
 export default function InstructorDashboard() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('courses'); // 'courses' | 'recheck' | 'all-courses' | 'results'
+  const [activeTab, setActiveTab] = useState('courses'); // 'courses' | 'results'
+  const [resultsSubTab, setResultsSubTab] = useState('entry'); // 'entry' | 'recheck'
+
   const [sections, setSections] = useState([]);
-  const [allAvailableCourses, setAllAvailableCourses] = useState([]);
-  const [selectedDegree, setSelectedDegree] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
 
@@ -62,8 +54,6 @@ export default function InstructorDashboard() {
       setResultSections(resSecs);
       const revs = await api.getInstructorPaperReviewRequests().catch(() => []);
       setInstructorReviewRequests(revs);
-      const avail = await api.getInstructorAvailableCourses().catch(() => []);
-      setAllAvailableCourses(avail);
     } catch (e) { /* ignore */ }
     setLoading(false);
   };
@@ -216,19 +206,6 @@ export default function InstructorDashboard() {
 
   if (loading) return <div className="loading-screen">Loading instructor dashboard…</div>;
 
-  // Filter sections by instructor's department first, then by selected degree tile
-  const myDept = (user?.department || 'cs').toLowerCase();
-  const deptSections = sections.filter(s => {
-    const cDept = (s.course_department || 'cs').toLowerCase();
-    if (cDept === myDept) return true;
-    if ((myDept === 'cs' || myDept.includes('comp')) && (cDept === 'cs' || cDept.includes('comp'))) return true;
-    return false;
-  });
-
-  const filteredSections = selectedDegree
-    ? deptSections.filter(s => s.degree_level === selectedDegree.level && s.department === selectedDegree.dept)
-    : (deptSections.length > 0 ? deptSections : sections);
-
   return (
     <div>
       <div className="page-header">
@@ -245,21 +222,7 @@ export default function InstructorDashboard() {
           className={`admin-tab ${activeTab === 'courses' ? 'active' : ''}`}
           onClick={() => setActiveTab('courses')}
         >
-          📚 My Department Courses ({filteredSections.length})
-        </button>
-        <button
-          type="button"
-          className={`admin-tab ${activeTab === 'recheck' ? 'active' : ''}`}
-          onClick={() => setActiveTab('recheck')}
-        >
-          📄 Paper Recheck Requests ({instructorReviewRequests.length})
-        </button>
-        <button
-          type="button"
-          className={`admin-tab ${activeTab === 'all-courses' ? 'active' : ''}`}
-          onClick={() => setActiveTab('all-courses')}
-        >
-          🌐 All Portal Courses ({allAvailableCourses.length})
+          📚 My Department Courses ({sections.length})
         </button>
         <button
           type="button"
@@ -271,45 +234,18 @@ export default function InstructorDashboard() {
       </div>
 
       {/* ==================================================== */}
-      {/* TAB 1: MY COURSES */}
+      {/* TAB 1: MY COURSES (Direct Course Cards Grid) */}
       {/* ==================================================== */}
       {activeTab === 'courses' && (
         <div>
-          {/* Degree Filter Tiles */}
-          <div className="degree-tiles" style={{ marginBottom: '1.25rem' }}>
-            <button
-              type="button"
-              className={`degree-tile ${!selectedDegree ? 'selected' : ''}`}
-              onClick={() => setSelectedDegree(null)}
-            >
-              <span className="degree-tile-icon">🌐</span>
-              <span className="degree-tile-label">All Degree Courses ({filteredSections.length})</span>
-            </button>
-            {DEGREE_TILES.map(deg => {
-              const count = filteredSections.filter(s => s.degree_level === deg.level && s.department === deg.dept).length;
-              return (
-                <button
-                  key={deg.code}
-                  type="button"
-                  className={`degree-tile ${selectedDegree?.code === deg.code ? 'selected' : ''}`}
-                  style={{ '--tile-color': deg.color }}
-                  onClick={() => setSelectedDegree(deg)}
-                >
-                  <span className="degree-tile-icon">{deg.icon}</span>
-                  <span className="degree-tile-label">{deg.label} ({count})</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {filteredSections.length === 0 ? (
+          {sections.length === 0 ? (
             <div className="card" style={{ textAlign:'center', padding:'2rem', color:'var(--muted)' }}>
               <div style={{ fontSize:'3rem', marginBottom:'0.5rem' }}>👨‍🏫</div>
               <p>No courses assigned to your department ({user?.department?.toUpperCase() || 'CS'}) yet.</p>
             </div>
           ) : (
             <div className="card-grid">
-              {filteredSections.map(s => {
+              {sections.map(s => {
                 const slots = s.schedule_slots || [];
                 const examStarted = s.exam_started === 1;
 
@@ -387,130 +323,122 @@ export default function InstructorDashboard() {
       )}
 
       {/* ==================================================== */}
-      {/* TAB 2: PAPER RECHECK REQUESTS */}
-      {/* ==================================================== */}
-      {activeTab === 'recheck' && (
-        <div className="card">
-          <h2>📄 Paper Recheck &amp; Revision Requests</h2>
-          <p className="muted" style={{ marginBottom:'1rem' }}>
-            Re-check student exam papers forwarded to you by academic staff/HOD and enter revised marks.
-          </p>
-
-          <table className="data-table">
-            <thead>
-              <tr><th>Course</th><th>Roll No</th><th>Student Name</th><th>Reason</th><th>Current Marks</th><th>Revised Marks Input</th><th>Action</th></tr>
-            </thead>
-            <tbody>
-              {instructorReviewRequests.map(r => {
-                const inputVal = recheckInputs[r.request_id] || { new_value: r.new_value ?? r.old_value ?? '', remarks: '' };
-                return (
-                  <tr key={r.request_id}>
-                    <td><strong>{r.course_code} — {r.course_title}</strong></td>
-                    <td>{r.roll_number}</td>
-                    <td>{r.student_name}</td>
-                    <td>{r.reason}</td>
-                    <td>{r.old_value != null ? `${r.old_value} / 100` : '—'}</td>
-                    <td>
-                      <input
-                        type="number"
-                        placeholder="New marks"
-                        value={inputVal.new_value}
-                        onChange={e => setRecheckInputs({
-                          ...recheckInputs,
-                          [r.request_id]: { ...inputVal, new_value: e.target.value }
-                        })}
-                        style={{ width:90, padding:'0.4rem', border:'1px solid var(--border)', borderRadius:6 }}
-                      />
-                    </td>
-                    <td>
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => submitRecheck(r.request_id)}>
-                        💾 Submit Revised Marks
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {instructorReviewRequests.length === 0 && (
-                <tr><td colSpan={7} className="muted">No pending paper recheck requests assigned to you.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* ==================================================== */}
-      {/* TAB 3: ALL PORTAL COURSES */}
-      {/* ==================================================== */}
-      {activeTab === 'all-courses' && (
-        <div className="card">
-          <h2>🌐 All University Courses</h2>
-          <p className="muted" style={{ marginBottom:'1rem' }}>Browse all courses available across all departments.</p>
-
-          <table className="data-table">
-            <thead>
-              <tr><th>Code</th><th>Title</th><th>Department</th><th>Degree</th><th>Credits</th></tr>
-            </thead>
-            <tbody>
-              {allAvailableCourses.map(c => (
-                <tr key={c.id}>
-                  <td><strong>{c.code}</strong></td>
-                  <td>{c.title}</td>
-                  <td>{c.department?.toUpperCase()}</td>
-                  <td><span className="badge">{c.degree_level?.toUpperCase()}</span></td>
-                  <td>{c.credits} cr</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* ==================================================== */}
-      {/* TAB 4: RESULTS ENTRY & VIEW */}
+      {/* TAB 2: RESULTS ENTRY & VIEW + PAPER RECHECK REQUESTS */}
       {/* ==================================================== */}
       {activeTab === 'results' && (
-        <div className="card">
-          <h2>Student Results Entry &amp; View</h2>
-          <div className="inline-label" style={{ marginBottom:'1.5rem', marginTop:'1rem' }}>
-            <label style={{ fontWeight:600 }}>Select Course Section:</label>
-            <select
-              value={selectedResultSec || ''}
-              onChange={e => loadViewResults(e.target.value)}
-              style={{ padding:'0.5rem 0.75rem', border:'1px solid var(--border)', borderRadius:8, fontSize:'1rem' }}
+        <div>
+          {/* Sub Navigation inside Results Tab */}
+          <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem' }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${resultsSubTab === 'entry' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setResultsSubTab('entry')}
             >
-              <option value="">-- Choose Section --</option>
-              {resultSections.map(sec => (
-                <option key={sec.id} value={sec.id}>
-                  {sec.course_code} — {sec.course_title} ({sec.section_code}) - {sec.semester_name} {sec.year}
-                </option>
-              ))}
-            </select>
+              📊 Student Results View
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${resultsSubTab === 'recheck' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setResultsSubTab('recheck')}
+            >
+              📄 Paper Recheck Requests ({instructorReviewRequests.length})
+            </button>
           </div>
 
-          {selectedResultSec && (
-            <table className="data-table">
-              <thead>
-                <tr><th>Roll No</th><th>Student Name</th><th>Marks (Out of 100)</th><th>Grade</th><th>Workflow Status</th></tr>
-              </thead>
-              <tbody>
-                {resultStudents.map(st => {
-                  const sLabel = STATUS_DISPLAY[st.workflow_status] || STATUS_DISPLAY.papers_submitted;
-                  return (
-                    <tr key={st.enrollment_id}>
-                      <td><strong>{st.roll_number}</strong></td>
-                      <td>{st.student_name}</td>
-                      <td>{st.marks != null ? <strong>{st.marks} / 100</strong> : '—'}</td>
-                      <td><span className="badge">{st.letter_grade || '—'}</span></td>
-                      <td>
-                        <span className="badge" style={{ background: sLabel.bg, color: sLabel.color }}>
-                          {sLabel.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          {resultsSubTab === 'entry' && (
+            <div className="card">
+              <h2>Student Results Entry &amp; View</h2>
+              <div className="inline-label" style={{ marginBottom:'1.5rem', marginTop:'1rem' }}>
+                <label style={{ fontWeight:600 }}>Select Course Section:</label>
+                <select
+                  value={selectedResultSec || ''}
+                  onChange={e => loadViewResults(e.target.value)}
+                  style={{ padding:'0.5rem 0.75rem', border:'1px solid var(--border)', borderRadius:8, fontSize:'1rem' }}
+                >
+                  <option value="">-- Choose Section --</option>
+                  {resultSections.map(sec => (
+                    <option key={sec.id} value={sec.id}>
+                      {sec.course_code} — {sec.course_title} ({sec.section_code}) - {sec.semester_name} {sec.year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedResultSec && (
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Roll No</th><th>Student Name</th><th>Marks (Out of 100)</th><th>Grade</th><th>Workflow Status</th></tr>
+                  </thead>
+                  <tbody>
+                    {resultStudents.map(st => {
+                      const sLabel = STATUS_DISPLAY[st.workflow_status] || STATUS_DISPLAY.papers_submitted;
+                      return (
+                        <tr key={st.enrollment_id}>
+                          <td><strong>{st.roll_number}</strong></td>
+                          <td>{st.student_name}</td>
+                          <td>{st.marks != null ? <strong>{st.marks} / 100</strong> : '—'}</td>
+                          <td><span className="badge">{st.letter_grade || '—'}</span></td>
+                          <td>
+                            <span className="badge" style={{ background: sLabel.bg, color: sLabel.color }}>
+                              {sLabel.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {resultsSubTab === 'recheck' && (
+            <div className="card">
+              <h2>📄 Paper Recheck &amp; Revision Requests</h2>
+              <p className="muted" style={{ marginBottom:'1rem' }}>
+                Re-check student exam papers forwarded to you by academic staff/HOD and enter revised marks.
+              </p>
+
+              <table className="data-table">
+                <thead>
+                  <tr><th>Course</th><th>Roll No</th><th>Student Name</th><th>Reason</th><th>Current Marks</th><th>Revised Marks Input</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                  {instructorReviewRequests.map(r => {
+                    const inputVal = recheckInputs[r.request_id] || { new_value: r.new_value ?? r.old_value ?? '', remarks: '' };
+                    return (
+                      <tr key={r.request_id}>
+                        <td><strong>{r.course_code} — {r.course_title}</strong></td>
+                        <td>{r.roll_number}</td>
+                        <td>{r.student_name}</td>
+                        <td>{r.reason}</td>
+                        <td>{r.old_value != null ? `${r.old_value} / 100` : '—'}</td>
+                        <td>
+                          <input
+                            type="number"
+                            placeholder="New marks"
+                            value={inputVal.new_value}
+                            onChange={e => setRecheckInputs({
+                              ...recheckInputs,
+                              [r.request_id]: { ...inputVal, new_value: e.target.value }
+                            })}
+                            style={{ width:90, padding:'0.4rem', border:'1px solid var(--border)', borderRadius:6 }}
+                          />
+                        </td>
+                        <td>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => submitRecheck(r.request_id)}>
+                            💾 Submit Revised Marks
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {instructorReviewRequests.length === 0 && (
+                    <tr><td colSpan={7} className="muted">No pending paper recheck requests assigned to you.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

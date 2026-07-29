@@ -423,6 +423,13 @@ router.post('/semesters', authRequired, requireRoles('admin', 'academic_staff'),
     });
   }
 
+  const uncompletedExamsSem = db.prepare('SELECT id, name FROM semesters WHERE exams_completed = 0 ORDER BY id DESC LIMIT 1').get();
+  if (uncompletedExamsSem) {
+    return res.status(400).json({
+      error: `Cannot create a new semester because exams for "${uncompletedExamsSem.name}" are not marked done yet. Please mark exams done first.`
+    });
+  }
+
   const { name, year, semester_number, is_active, registration_open } = req.body;
   
   let semNum = semester_number;
