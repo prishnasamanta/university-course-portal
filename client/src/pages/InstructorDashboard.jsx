@@ -443,25 +443,28 @@ export default function InstructorDashboard() {
         </div>
       )}
 
-      {/* ===== VIEW STUDENTS MODAL (NAME & ROLL NO ONLY) ===== */}
+      {/* ===== VIEW STUDENTS MODAL ===== */}
       {viewStudentsModal && (
         <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }}>
-          <div className="card" style={{ maxWidth:500, width:'90%', maxHeight:'80vh', overflowY:'auto' }}>
+          <div className="card" style={{ maxWidth:650, width:'90%', maxHeight:'80vh', overflowY:'auto' }}>
             <div className="card-header">
-              <h3>Enrolled Students ({viewStudentsModal.course_code})</h3>
+              <h3>Registered Students — {viewStudentsModal.course_code} ({viewStudentsModal.course_title})</h3>
               <button type="button" className="btn btn-outline btn-sm" onClick={() => setViewStudentsModal(null)}>Close</button>
             </div>
             <table className="data-table">
-              <thead><tr><th>Roll Number</th><th>Student Name</th></tr></thead>
+              <thead><tr><th>Roll Number</th><th>Student Name</th><th>Email</th><th>Marks (100)</th><th>Grade</th></tr></thead>
               <tbody>
                 {viewStudentsList.map(st => (
                   <tr key={st.enrollment_id}>
                     <td><strong>{st.roll_number}</strong></td>
                     <td>{st.student_name}</td>
+                    <td>{st.student_email || '—'}</td>
+                    <td>{st.marks != null ? <strong>{st.marks} / 100</strong> : '—'}</td>
+                    <td><span className="badge">{st.letter_grade || '—'}</span></td>
                   </tr>
                 ))}
                 {viewStudentsList.length === 0 && (
-                  <tr><td colSpan={2} className="muted">No students currently enrolled.</td></tr>
+                  <tr><td colSpan={5} className="muted">No students currently enrolled in this section.</td></tr>
                 )}
               </tbody>
             </table>

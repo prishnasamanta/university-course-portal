@@ -189,9 +189,9 @@ export function validateRegistration(studentId, sectionId, chosenSlotId) {
 }
 
 export function registerStudent(studentId, sectionId, chosenSlotId) {
-  let slotIdToUse = chosenSlotId;
+  let slotIdToUse = chosenSlotId ? Number(chosenSlotId) : null;
 
-  if (!slotIdToUse) {
+  if (!slotIdToUse && sectionId) {
     const available = getAvailableSlotsForStudent(studentId, sectionId);
     const freeSlots = available.filter(s => s.available);
     if (freeSlots.length > 0) {
@@ -209,11 +209,24 @@ export function registerStudent(studentId, sectionId, chosenSlotId) {
     VALUES (?, ?, ?, 'registered')
   `).run(studentId, sectionId, slotIdToUse || null);
 
-  db.prepare(`
-    INSERT INTO result_workflow (enrollment_id, status) VALUES (?, 'papers_submitted')
-  `).run(result.lastInsertRowid);
+  const enrollmentId = result.lastInsertRowid;
 
-  return { ok: true, enrollment_id: result.lastInsertRowid, chosen_slot_id: slotIdToUse };
+  // Insert into result_workflow table
+  try {
+    db.prepare(`
+      INSERT OR IGNORE INTO result_workflow (enrollment_id, status) VALUES (?, 'papers_submitted')
+    `).run(enrollmentId);
+  } catch (e) { /* ignore */ }
+
+  // Check if exam registration is currently open for this section; if so, register for exam too!
+  try {
+    const section = db.prepare('SELECT exam_reg_open FROM sections WHERE id = ?').get(sectionId);
+    if (section && section.exam_reg_open) {
+      db.prepare('INSERT OR IGNORE INTO exam_registrations (enrollment_id) VALUES (?)').run(enrollmentId);
+    }
+  } catch (e) { /* ignore */ }
+
+  return { ok: true, enrollment_id: enrollmentId, chosen_slot_id: slotIdToUse };
 }
 
 export { DAY_NAMES };

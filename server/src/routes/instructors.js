@@ -152,43 +152,24 @@ router.get('/results/sections', authRequired, requireRoles('instructor'), (req, 
 
 
 router.get('/results/sections/:sectionId/students', authRequired, requireRoles('instructor', 'admin', 'dept_head', 'academic_staff'), (req, res) => {
-
   const rows = db.prepare(`
-
-    SELECT e.id AS enrollment_id, st.roll_number, u.name AS student_name,
-
+    SELECT e.id AS enrollment_id, st.id AS student_id, st.roll_number, u.name AS student_name, u.email AS student_email,
            cr.marks, rw.status AS workflow_status, eg.letter_grade, eg.total_percent
-
     FROM enrollments e
-
     JOIN students st ON st.id = e.student_id
-
     JOIN users u ON u.id = st.user_id
-
     LEFT JOIN course_results cr ON cr.enrollment_id = e.id
-
     LEFT JOIN result_workflow rw ON rw.enrollment_id = e.id
-
     LEFT JOIN enrollment_grades eg ON eg.enrollment_id = e.id
-
     WHERE e.section_id = ? AND e.status IN ('registered', 'completed')
-
     ORDER BY st.roll_number
-
   `).all(req.params.sectionId);
 
-
-
   res.json(rows.map(r => ({
-
     ...r,
-
     status_label: STATUS_LABELS[r.workflow_status] || STATUS_LABELS.papers_submitted,
-
     show_grade: r.workflow_status === 'published'
-
   })));
-
 });
 
 

@@ -579,7 +579,7 @@ export default function AdminDashboard() {
           {courseStudentsModal && (
             <div style={{ marginTop:'1.5rem', borderTop:'2px solid var(--primary)', paddingTop:'1rem' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <h3>Enrolled Students for {courseStudentsModal.code} — {courseStudentsModal.title}</h3>
+                <h3>Registered Students — {courseStudentsModal.code} ({courseStudentsModal.title})</h3>
                 <button type="button" className="btn btn-outline btn-sm" onClick={() => setCourseStudentsModal(null)}>Close</button>
               </div>
               <table className="data-table" style={{ marginTop:'0.75rem' }}>
@@ -591,12 +591,12 @@ export default function AdminDashboard() {
                     <tr key={st.enrollment_id}>
                       <td><strong>{st.roll_number}</strong></td>
                       <td>{st.student_name}</td>
-                      <td>{st.student_email}</td>
+                      <td>{st.student_email || '—'}</td>
                       <td>Section {st.section_code}</td>
                       <td>{st.enrolled_at ? new Date(st.enrolled_at).toLocaleDateString() : '—'}</td>
                       <td>
                         <button type="button" className="btn btn-danger btn-sm" onClick={() => handleUnenroll(st.enrollment_id)}>
-                          Unenroll
+                          🗑️ {isAdmin ? 'Delete Student' : 'Unenroll'}
                         </button>
                       </td>
                     </tr>
