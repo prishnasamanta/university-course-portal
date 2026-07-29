@@ -24,10 +24,16 @@ export default function GradeCard() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    api.getSemesters().then(sems => {
-      setSemesters(sems);
-      const active = sems.find(s => s.is_active) || sems[0];
-      if (active) setSelectedSem(String(active.id));
+    api.getMySemesters().then(sems => {
+      if (sems.length > 0) {
+        setSemesters(sems);
+        setSelectedSem(String(sems[0].id));
+      } else {
+        api.getSemesters().then(allSems => {
+          setSemesters(allSems);
+          if (allSems[0]) setSelectedSem(String(allSems[0].id));
+        });
+      }
     });
   }, []);
 

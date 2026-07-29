@@ -2,20 +2,30 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 
-const DEGREES = ['B.Sc', 'B.Tech', 'M.Sc', 'M.Tech', 'BA', 'Other'];
+const DEGREES = ['B.Sc', 'B.Tech', 'M.Sc', 'M.Tech', 'BA', 'Class XII', 'Other'];
 const GRADES = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D', 'F'];
+const DEPTS = [
+  { code: 'cs', label: 'Computer Science' },
+  { code: 'eco', label: 'Economics' },
+  { code: 'stat', label: 'Statistics' }
+];
 
 export default function StudentProfileOverlay({ onComplete }) {
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [step, setStep] = useState('welcome');
   const [semesters, setSemesters] = useState([]);
   const [programs, setPrograms] = useState([]);
+  const [selectedDept, setSelectedDept] = useState('cs');
+
+  const generatedRoll = profile?.roll_number || `STU-${user?.id || 1001}`;
+
   const [form, setForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
+    department: 'cs',
     program_id: '',
-    previous_degree: '',
-    previous_grade: '',
+    previous_degree: 'B.Sc',
+    previous_grade: 'A',
     current_semester_id: ''
   });
   const [error, setError] = useState('');
@@ -35,12 +45,19 @@ export default function StudentProfileOverlay({ onComplete }) {
       });
   }, []);
 
+  const filteredPrograms = programs.filter(p => {
+    if (selectedDept === 'cs') return p.department === 'cs' || p.code.includes('CS');
+    if (selectedDept === 'eco') return p.department === 'eco' || p.code.includes('ECO');
+    if (selectedDept === 'stat') return p.department === 'stat' || p.code.includes('STAT');
+    return true;
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSaving(true);
     try {
-      await api.saveStudentProfile(form);
+      await api.saveStudentProfile({ ...form, department: selectedDept });
       await refreshProfile();
       onComplete();
     } catch (err) {
@@ -52,7 +69,7 @@ export default function StudentProfileOverlay({ onComplete }) {
 
   return (
     <div className="modal-overlay profile-overlay">
-      <div className="modal profile-modal" style={{ position: 'relative' }}>
+      <div className="modal profile-modal" style={{ position: 'relative', maxWidth: 550 }}>
         <button
           type="button"
           onClick={onComplete}
@@ -71,23 +88,29 @@ export default function StudentProfileOverlay({ onComplete }) {
         >
           ✕
         </button>
+
+        {/* Auto-generated Roll Number Banner */}
+        <div style={{ background: 'var(--surface-hover)', padding: '0.65rem 1rem', borderRadius: 8, marginBottom: '1rem', borderLeft: '4px solid var(--primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>🆔 <strong>Roll Number:</strong></span>
+          <span className="badge success" style={{ fontSize: '0.95rem' }}>{generatedRoll}</span>
+        </div>
+
         {step === 'welcome' ? (
           <>
             <div className="profile-modal-header center">
               <span className="brand-icon large">🎓</span>
-              <h2>Welcome to the University Portal</h2>
-              <p className="muted">Before you can register for courses, please add your academic details.</p>
+              <h2>Welcome to the Student Portal</h2>
+              <p className="muted">Your Roll Number is <strong>{generatedRoll}</strong>. Please confirm your academic details to continue.</p>
             </div>
             <button type="button" className="btn btn-primary btn-block btn-lg" onClick={() => setStep('form')}>
-              Add Your Details
+              Complete Profile Setup
             </button>
           </>
         ) : (
           <>
             <div className="profile-modal-header">
-              <span className="brand-icon">🎓</span>
               <h2>Student Profile Details</h2>
-              <p className="muted">Select your degree program, previous degree, grade, and current semester.</p>
+              <p className="muted">Enter your department, degree program, previous academic details, and current semester.</p>
             </div>
 
             {error && <div className="alert alert-error">{error}</div>}
@@ -97,31 +120,38 @@ export default function StudentProfileOverlay({ onComplete }) {
               <label>Email<input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required /></label>
               
               <label>
-                Enrolled Program / Degree
+                Department
+                <select value={selectedDept} onChange={e => setSelectedDept(e.target.value)} required>
+                  {DEPTS.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                </select>
+              </label>
+
+              <label>
+                Enrolled Degree Program
                 <select value={form.program_id} onChange={e => setForm({ ...form, program_id: e.target.value })} required>
                   <option value="">Select program</option>
-                  {programs.map(p => (
+                  {(filteredPrograms.length > 0 ? filteredPrograms : programs).map(p => (
                     <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
                   ))}
                 </select>
               </label>
 
-              <label>
-                Previous Degree
-                <select value={form.previous_degree} onChange={e => setForm({ ...form, previous_degree: e.target.value })} required>
-                  <option value="">Select degree</option>
-                  {DEGREES.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </label>
-              
-              <label>
-                Grade in Previous Degree
-                <select value={form.previous_grade} onChange={e => setForm({ ...form, previous_grade: e.target.value })} required>
-                  <option value="">Select grade</option>
-                  {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </label>
-              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <label>
+                  Previous Degree
+                  <select value={form.previous_degree} onChange={e => setForm({ ...form, previous_degree: e.target.value })} required>
+                    {DEGREES.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </label>
+                
+                <label>
+                  Previous Grade
+                  <select value={form.previous_grade} onChange={e => setForm({ ...form, previous_grade: e.target.value })} required>
+                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </label>
+              </div>
+
               <label>
                 Current Semester
                 <select value={form.current_semester_id} onChange={e => setForm({ ...form, current_semester_id: e.target.value })} required>

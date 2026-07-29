@@ -135,6 +135,18 @@ router.post('/sections/:sectionId/close-exam-reg', authRequired, requireRoles('a
   res.json({ ok: true });
 });
 
+// POST /api/workflow/sections/:sectionId/start-exam — staff starts exam after registration is closed
+router.post('/sections/:sectionId/start-exam', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
+  const section = db.prepare('SELECT * FROM sections WHERE id = ?').get(req.params.sectionId);
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+  if (section.exam_reg_open) {
+    return res.status(400).json({ error: 'Close exam registration before starting the exam.' });
+  }
+
+  db.prepare('UPDATE sections SET exam_started = 1 WHERE id = ?').run(section.id);
+  res.json({ ok: true, exam_started: 1 });
+});
+
 // GET /api/workflow/sections/:sectionId/exam-registrations — staff sees who registered/didn't
 router.get('/sections/:sectionId/exam-registrations', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
   const enrolled = db.prepare(`
@@ -474,6 +486,87 @@ router.delete('/enrollments/:enrollmentId', authRequired, requireRoles('admin', 
   db.prepare('DELETE FROM enrollments WHERE id = ?').run(enrollment.id);
 
   res.json({ ok: true, deleted_enrollment_id: enrollment.id });
+});
+
+// ==========================================
+// --- STUDENT REMOVAL APPROVAL WORKFLOW ---
+// ==========================================
+
+// 1. Admin marks a student for removal
+router.post('/students/:studentId/request-removal', authRequired, requireRoles('admin'), (req, res) => {
+  const { reason } = req.body;
+  const student = db.prepare('SELECT s.*, u.name FROM students s JOIN users u ON u.id = s.user_id WHERE s.id = ?').get(req.params.studentId);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO student_removal_requests (student_id, requested_by_admin, reason, status)
+      VALUES (?, ?, ?, 'pending_hod_approval')
+    `).run(student.id, req.user.id, reason || 'Admin marked for removal');
+
+    res.status(201).json({ ok: true, removal_id: result.lastInsertRowid, status: 'pending_hod_approval' });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Failed to submit removal request' });
+  }
+});
+
+// 2. HOD / Admin lists removal requests
+router.get('/removal-requests', authRequired, requireRoles('dept_head', 'admin'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.id AS removal_id, r.student_id, r.reason, r.status, r.created_at, r.reviewed_at,
+           st.roll_number, u_stu.name AS student_name, u_stu.email AS student_email,
+           p.name AS program_name,
+           u_adm.name AS requested_by_admin_name
+    FROM student_removal_requests r
+    JOIN students st ON st.id = r.student_id
+    JOIN users u_stu ON u_stu.id = st.user_id
+    JOIN programs p ON p.id = st.program_id
+    JOIN users u_adm ON u_adm.id = r.requested_by_admin
+    ORDER BY r.created_at DESC
+  `).all();
+
+  res.json(rows);
+});
+
+// 3. HOD approves or rejects removal request
+router.post('/removal-requests/:id/hod-review', authRequired, requireRoles('dept_head', 'admin'), (req, res) => {
+  const { decision } = req.body;
+  if (!['approve', 'reject'].includes(decision)) {
+    return res.status(400).json({ error: 'Decision must be approve or reject' });
+  }
+
+  const reqRow = db.prepare('SELECT * FROM student_removal_requests WHERE id = ?').get(req.params.id);
+  if (!reqRow) return res.status(404).json({ error: 'Removal request not found' });
+
+  const newStatus = decision === 'approve' ? 'approved_by_hod' : 'rejected_by_hod';
+
+  db.prepare(`
+    UPDATE student_removal_requests
+    SET status = ?, reviewed_at = datetime('now')
+    WHERE id = ?
+  `).run(newStatus, reqRow.id);
+
+  res.json({ ok: true, status: newStatus });
+});
+
+// 4. Admin executes final student deletion once approved by HOD
+router.post('/removal-requests/:id/execute-delete', authRequired, requireRoles('admin'), (req, res) => {
+  const reqRow = db.prepare('SELECT * FROM student_removal_requests WHERE id = ?').get(req.params.id);
+  if (!reqRow) return res.status(404).json({ error: 'Removal request not found' });
+
+  if (reqRow.status !== 'approved_by_hod') {
+    return res.status(400).json({ error: 'Student removal must be approved by HOD first.' });
+  }
+
+  const student = db.prepare('SELECT user_id FROM students WHERE id = ?').get(reqRow.student_id);
+
+  if (student) {
+    db.prepare('DELETE FROM users WHERE id = ?').run(student.user_id);
+  }
+
+  db.prepare('UPDATE student_removal_requests SET status = "completed" WHERE id = ?').run(reqRow.id);
+
+  res.json({ ok: true, status: 'completed' });
 });
 
 export default router;

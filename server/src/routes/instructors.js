@@ -136,20 +136,15 @@ router.get('/results/sections', authRequired, requireRoles('instructor'), (req, 
 
   res.json(db.prepare(`
 
-    SELECT s.id, c.code AS course_code, c.title AS course_title, s.section_code,
-
-           sem.name AS semester_name, sem.year, sem.exams_completed
-
+    SELECT s.id, s.course_id, c.code AS course_code, c.title AS course_title, c.department AS course_department,
+           s.section_code, s.exam_requested, s.exam_reg_open, s.exam_started,
+           sem.name AS semester_name, sem.year, sem.exams_completed,
+           (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.id AND e.status IN ('registered', 'completed')) AS enrolled_count
     FROM sections s
-
     JOIN courses c ON c.id = s.course_id
-
     JOIN semesters sem ON sem.id = s.semester_id
-
     WHERE s.instructor_id = ?
-
     ORDER BY sem.year DESC, c.code
-
   `).all(req.user.id));
 
 });
@@ -475,10 +470,12 @@ router.post('/sections/:sectionId/request-exam', authRequired, requireRoles('ins
 
 // POST /api/instructor/sections/:sectionId/cancel-exam-request
 router.post('/sections/:sectionId/cancel-exam-request', authRequired, requireRoles('instructor'), async (req, res) => {
-  const instructor = getInstructorByUserId(req.user.id);
   const dbInst = await getDb();
   const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, req.user.id);
   if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
+  if (section.exam_reg_open) {
+    return res.status(400).json({ error: 'Cannot cancel exam request once exam registration is opened by academic staff.' });
+  }
   
   dbInst.prepare('UPDATE sections SET exam_requested = 0 WHERE id = ?').run(section.id);
   res.json({ ok: true });

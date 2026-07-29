@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 const DEGREE_TILES = [
   { code: 'BTECH-CS', label: 'B.Tech Computer Science', dept: 'cs', level: 'btech', icon: '💻', color: '#4f46e5' },
@@ -21,11 +22,21 @@ const STATUS_DISPLAY = {
 };
 
 export default function InstructorDashboard() {
-  const [activeTab, setActiveTab] = useState('courses'); // 'courses' | 'results'
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('courses'); // 'courses' | 'recheck' | 'all-courses' | 'results'
   const [sections, setSections] = useState([]);
+  const [allAvailableCourses, setAllAvailableCourses] = useState([]);
   const [selectedDegree, setSelectedDegree] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
+
+  // Paper review recheck state
+  const [instructorReviewRequests, setInstructorReviewRequests] = useState([]);
+  const [recheckInputs, setRecheckInputs] = useState({});
+
+  // View Students Modal state
+  const [viewStudentsModal, setViewStudentsModal] = useState(null);
+  const [viewStudentsList, setViewStudentsList] = useState([]);
 
   // Enter Marks Modal state
   const [marksModalSection, setMarksModalSection] = useState(null);
@@ -36,7 +47,6 @@ export default function InstructorDashboard() {
   // Timetable Modal state
   const [timetableSection, setTimetableSection] = useState(null);
   const [ttSlots, setTtSlots] = useState([{ day_of_week: 1, start_time: '09:00', end_time: '11:00' }]);
-  const [ttRoom, setTtRoom] = useState('');
 
   // View Results Tab state
   const [resultSections, setResultSections] = useState([]);
@@ -50,6 +60,10 @@ export default function InstructorDashboard() {
       setSections(data);
       const resSecs = await api.getInstructorResultSections();
       setResultSections(resSecs);
+      const revs = await api.getInstructorPaperReviewRequests().catch(() => []);
+      setInstructorReviewRequests(revs);
+      const avail = await api.getInstructorAvailableCourses().catch(() => []);
+      setAllAvailableCourses(avail);
     } catch (e) { /* ignore */ }
     setLoading(false);
   };
@@ -79,6 +93,17 @@ export default function InstructorDashboard() {
       load();
     } catch (err) {
       flash('error', err.message || 'Failed');
+    }
+  };
+
+  // View Students modal handler (shows Name & Roll No only)
+  const openViewStudentsModal = async (sec) => {
+    setViewStudentsModal(sec);
+    try {
+      const rows = await api.getSectionResultStudents(sec.id);
+      setViewStudentsList(rows);
+    } catch {
+      setViewStudentsList([]);
     }
   };
 
@@ -137,7 +162,6 @@ export default function InstructorDashboard() {
     } else {
       setTtSlots([{ day_of_week: 1, start_time: '09:00', end_time: '11:00' }]);
     }
-    setTtRoom(sec.room || '');
   };
 
   const addTtSlot = () => {
@@ -153,14 +177,29 @@ export default function InstructorDashboard() {
     if (!timetableSection) return;
     try {
       await api.updateSectionTimetable(timetableSection.id, {
-        slots: ttSlots,
-        room: ttRoom
+        slots: ttSlots
       });
-      flash('success', 'Multi-day timetable and room updated in database!');
+      flash('success', 'Multi-day timetable updated in database!');
       setTimetableSection(null);
       load();
     } catch (err) {
       flash('error', err.message || 'Failed to update timetable');
+    }
+  };
+
+  // Submit Paper Review Recheck
+  const submitRecheck = async (requestId) => {
+    const input = recheckInputs[requestId];
+    if (!input || input.new_value === '') {
+      flash('error', 'Please enter a revised mark.');
+      return;
+    }
+    try {
+      await api.recheckPaperReview(requestId, Number(input.new_value), input.remarks || '');
+      flash('success', 'Revised marks submitted to Academic Staff.');
+      load();
+    } catch (err) {
+      flash('error', err.message);
     }
   };
 
@@ -177,16 +216,24 @@ export default function InstructorDashboard() {
 
   if (loading) return <div className="loading-screen">Loading instructor dashboard…</div>;
 
-  // Filter sections by selected degree tile
+  // Filter sections by instructor's department first, then by selected degree tile
+  const myDept = (user?.department || 'cs').toLowerCase();
+  const deptSections = sections.filter(s => {
+    const cDept = (s.course_department || 'cs').toLowerCase();
+    if (cDept === myDept) return true;
+    if ((myDept === 'cs' || myDept.includes('comp')) && (cDept === 'cs' || cDept.includes('comp'))) return true;
+    return false;
+  });
+
   const filteredSections = selectedDegree
-    ? sections.filter(s => s.degree_level === selectedDegree.level && s.department === selectedDegree.dept)
-    : sections;
+    ? deptSections.filter(s => s.degree_level === selectedDegree.level && s.department === selectedDegree.dept)
+    : (deptSections.length > 0 ? deptSections : sections);
 
   return (
     <div>
       <div className="page-header">
         <h1>Instructor Dashboard</h1>
-        <p>Manage course sections, exam requests, timetables, and student results</p>
+        <p>Welcome, <strong>{user?.name}</strong> ({user?.department?.toUpperCase() || 'CS'} Department)</p>
       </div>
 
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
@@ -198,14 +245,28 @@ export default function InstructorDashboard() {
           className={`admin-tab ${activeTab === 'courses' ? 'active' : ''}`}
           onClick={() => setActiveTab('courses')}
         >
-          📚 My Courses ({sections.length})
+          📚 My Department Courses ({filteredSections.length})
+        </button>
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === 'recheck' ? 'active' : ''}`}
+          onClick={() => setActiveTab('recheck')}
+        >
+          📄 Paper Recheck Requests ({instructorReviewRequests.length})
+        </button>
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === 'all-courses' ? 'active' : ''}`}
+          onClick={() => setActiveTab('all-courses')}
+        >
+          🌐 All Portal Courses ({allAvailableCourses.length})
         </button>
         <button
           type="button"
           className={`admin-tab ${activeTab === 'results' ? 'active' : ''}`}
           onClick={() => setActiveTab('results')}
         >
-          📊 View Results
+          📊 Results Entry &amp; View
         </button>
       </div>
 
@@ -222,10 +283,10 @@ export default function InstructorDashboard() {
               onClick={() => setSelectedDegree(null)}
             >
               <span className="degree-tile-icon">🌐</span>
-              <span className="degree-tile-label">All Degrees ({sections.length})</span>
+              <span className="degree-tile-label">All Degree Courses ({filteredSections.length})</span>
             </button>
             {DEGREE_TILES.map(deg => {
-              const count = sections.filter(s => s.degree_level === deg.level && s.department === deg.dept).length;
+              const count = filteredSections.filter(s => s.degree_level === deg.level && s.department === deg.dept).length;
               return (
                 <button
                   key={deg.code}
@@ -244,126 +305,173 @@ export default function InstructorDashboard() {
           {filteredSections.length === 0 ? (
             <div className="card" style={{ textAlign:'center', padding:'2rem', color:'var(--muted)' }}>
               <div style={{ fontSize:'3rem', marginBottom:'0.5rem' }}>👨‍🏫</div>
-              <p>
-                {selectedDegree
-                  ? `No courses assigned to you under ${selectedDegree.label}.`
-                  : 'No sections assigned yet. Academic staff will assign you to sections.'}
-              </p>
+              <p>No courses assigned to your department ({user?.department?.toUpperCase() || 'CS'}) yet.</p>
             </div>
           ) : (
-            DEGREE_TILES.map(deg => {
-              const degSections = filteredSections.filter(s => s.degree_level === deg.level && s.department === deg.dept);
-              if (degSections.length === 0) return null;
+            <div className="card-grid">
+              {filteredSections.map(s => {
+                const slots = s.schedule_slots || [];
+                const examStarted = s.exam_started === 1;
 
-              return (
-                <div key={deg.code} style={{ marginBottom: '2rem' }}>
-                  <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: deg.color, marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span>{deg.icon}</span>
-                    <span>{deg.label}</span>
-                  </h2>
+                return (
+                  <div key={s.id} className="card section-card">
+                    <div className="section-card-header">
+                      <span className="badge dept">{s.course_code}</span>
+                      <span className="badge">{s.credits} cr</span>
+                    </div>
 
-                  <div className="card-grid">
-                    {degSections.map(s => {
-                      const slots = s.schedule_slots || [];
-                      const allMarksSaved = s.enrolled_count > 0 && s.marks_count >= s.enrolled_count;
-                      // Enter marks is shown when registration is closed AND marks are not fully saved
-                      const canEnterMarks = !s.exam_reg_open && !allMarksSaved && (s.exam_requested === 1 || s.exams_completed === 1);
+                    <h3 style={{ margin:'0.5rem 0' }}>{s.course_title}</h3>
+                    <small className="muted">Section {s.section_code} · {s.semester_name} {s.year}</small>
 
-                      return (
-                        <div key={s.id} className="card section-card">
-                          <div className="section-card-header">
-                            <span className="badge dept">{s.course_code}</span>
-                            <span className="badge">{s.credits} cr</span>
-                          </div>
+                    <div style={{ fontSize:'0.85rem', margin:'0.55rem 0' }}>
+                      <div>👥 Enrolled Students: <strong>{s.enrolled_count}</strong></div>
+                      <div>
+                        🕐 Schedule:{' '}
+                        <strong>
+                          {slots.length > 0
+                            ? slots.map(sl => `${DAYS[sl.day_of_week] || ''} ${sl.start_time}-${sl.end_time}`).join(', ')
+                            : 'Not set'}
+                        </strong>
+                      </div>
+                    </div>
 
-                          <h3 style={{ margin:'0.5rem 0' }}>{s.course_title}</h3>
-                          <small className="muted">Section {s.section_code} · {s.semester_name} {s.year}</small>
+                    {/* Action Buttons based on Exam Started state */}
+                    <div style={{ marginTop:'0.75rem', paddingTop:'0.75rem', borderTop:'1px solid var(--border)', display:'flex', gap:'0.5rem', flexWrap:'wrap', alignItems:'center' }}>
+                      {!examStarted ? (
+                        /* BEFORE EXAM STARTED: Request Exam, Change Timetable, View Students */
+                        <>
+                          {!s.exam_requested ? (
+                            <button type="button" className="btn btn-primary btn-sm" onClick={() => requestExam(s.id)}>
+                              📝 Request Exam
+                            </button>
+                          ) : !s.exam_reg_open ? (
+                            <>
+                              <span className="badge" style={{ background:'#fef3c7', color:'#92400e' }}>⏳ Exam Requested</span>
+                              <button type="button" className="btn btn-outline btn-sm" onClick={() => cancelExam(s.id)}>
+                                ✕ Cancel Request
+                              </button>
+                            </>
+                          ) : (
+                            <span className="badge success">📝 Exam Reg Open</span>
+                          )}
 
-                          <div style={{ fontSize:'0.85rem', margin:'0.55rem 0' }}>
-                            <div>👥 Enrolled Students: <strong>{s.enrolled_count}</strong></div>
-                            <div>🏫 Room: <strong>{s.room || 'Not set'}</strong></div>
-                            <div>
-                              🕐 Schedule:{' '}
-                              <strong>
-                                {slots.length > 0
-                                  ? slots.map(sl => `${sl.day_name} ${sl.start_time}-${sl.end_time}`).join(', ')
-                                  : 'Not set'}
-                              </strong>
-                            </div>
-                          </div>
-
-                          {/* Action buttons & lifecycle state */}
-                          <div style={{ marginTop:'0.75rem', paddingTop:'0.75rem', borderTop:'1px solid var(--border)', display:'flex', gap:'0.5rem', flexWrap:'wrap', alignItems:'center' }}>
-                            {/* State 1: Exam Registration Open from Academic Staff */}
-                            {s.exam_reg_open ? (
-                              <>
-                                <span className="badge success">📝 Registration Open</span>
-                                <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
-                                  📅 Change Timetable
-                                </button>
-                              </>
-                            ) : s.exam_requested ? (
-                              /* State 2: Exam Requested by Instructor */
-                              <>
-                                <span className="badge" style={{ background:'#fef3c7', color:'#92400e' }}>⏳ Exam Requested</span>
-                                <button type="button" className="btn btn-outline btn-sm" onClick={() => cancelExam(s.id)}>
-                                  Cancel Request
-                                </button>
-                                {canEnterMarks && (
-                                  <button type="button" className="btn btn-primary btn-sm" onClick={() => openMarksModal(s)}>
-                                    ✏️ Enter Marks
-                                  </button>
-                                )}
-                                <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
-                                  📅 Change Timetable
-                                </button>
-                              </>
-                            ) : (
-                              /* State 3: Initial State (No Exam Requested) */
-                              <>
-                                <button type="button" className="btn btn-primary btn-sm" onClick={() => requestExam(s.id)}>
-                                  📝 Request Exam
-                                </button>
-                                {canEnterMarks && (
-                                  <button type="button" className="btn btn-primary btn-sm" onClick={() => openMarksModal(s)}>
-                                    ✏️ Enter Marks
-                                  </button>
-                                )}
-                                <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
-                                  {slots.length > 0 ? '📅 Change Timetable' : '📅 Add Timetable'}
-                                </button>
-                              </>
-                            )}
-
-                            {/* Hide Enter Marks button once all marks are entered & saved */}
-                            {allMarksSaved && (
-                              <span className="badge success" style={{ background:'#ecfdf5', color:'#059669' }}>
-                                ✅ Marks Submitted ({s.marks_count}/{s.enrolled_count})
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
+                            📅 Change Timetable
+                          </button>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => openViewStudentsModal(s)}>
+                            👥 View Students
+                          </button>
+                        </>
+                      ) : (
+                        /* AFTER EXAM STARTED / DONE: Enter Marks, Change Timetable, View Students */
+                        <>
+                          <span className="badge success">▶️ Exam Started</span>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => openMarksModal(s)}>
+                            ✏️ Enter Marks
+                          </button>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => openTimetableModal(s)}>
+                            📅 Change Timetable
+                          </button>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => openViewStudentsModal(s)}>
+                            👥 View Students
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       )}
 
       {/* ==================================================== */}
-      {/* TAB 2: VIEW RESULTS (Read-Only) */}
+      {/* TAB 2: PAPER RECHECK REQUESTS */}
+      {/* ==================================================== */}
+      {activeTab === 'recheck' && (
+        <div className="card">
+          <h2>📄 Paper Recheck &amp; Revision Requests</h2>
+          <p className="muted" style={{ marginBottom:'1rem' }}>
+            Re-check student exam papers forwarded to you by academic staff/HOD and enter revised marks.
+          </p>
+
+          <table className="data-table">
+            <thead>
+              <tr><th>Course</th><th>Roll No</th><th>Student Name</th><th>Reason</th><th>Current Marks</th><th>Revised Marks Input</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              {instructorReviewRequests.map(r => {
+                const inputVal = recheckInputs[r.request_id] || { new_value: r.new_value ?? r.old_value ?? '', remarks: '' };
+                return (
+                  <tr key={r.request_id}>
+                    <td><strong>{r.course_code} — {r.course_title}</strong></td>
+                    <td>{r.roll_number}</td>
+                    <td>{r.student_name}</td>
+                    <td>{r.reason}</td>
+                    <td>{r.old_value != null ? `${r.old_value} / 100` : '—'}</td>
+                    <td>
+                      <input
+                        type="number"
+                        placeholder="New marks"
+                        value={inputVal.new_value}
+                        onChange={e => setRecheckInputs({
+                          ...recheckInputs,
+                          [r.request_id]: { ...inputVal, new_value: e.target.value }
+                        })}
+                        style={{ width:90, padding:'0.4rem', border:'1px solid var(--border)', borderRadius:6 }}
+                      />
+                    </td>
+                    <td>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => submitRecheck(r.request_id)}>
+                        💾 Submit Revised Marks
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {instructorReviewRequests.length === 0 && (
+                <tr><td colSpan={7} className="muted">No pending paper recheck requests assigned to you.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB 3: ALL PORTAL COURSES */}
+      {/* ==================================================== */}
+      {activeTab === 'all-courses' && (
+        <div className="card">
+          <h2>🌐 All University Courses</h2>
+          <p className="muted" style={{ marginBottom:'1rem' }}>Browse all courses available across all departments.</p>
+
+          <table className="data-table">
+            <thead>
+              <tr><th>Code</th><th>Title</th><th>Department</th><th>Degree</th><th>Credits</th></tr>
+            </thead>
+            <tbody>
+              {allAvailableCourses.map(c => (
+                <tr key={c.id}>
+                  <td><strong>{c.code}</strong></td>
+                  <td>{c.title}</td>
+                  <td>{c.department?.toUpperCase()}</td>
+                  <td><span className="badge">{c.degree_level?.toUpperCase()}</span></td>
+                  <td>{c.credits} cr</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB 4: RESULTS ENTRY & VIEW */}
       {/* ==================================================== */}
       {activeTab === 'results' && (
         <div className="card">
-          <h2>Student Results (Read-Only View)</h2>
-          <p className="muted" style={{ marginBottom:'1rem' }}>
-            Select a course section below to view submitted and published student marks.
-          </p>
-
-          <div className="inline-label" style={{ marginBottom:'1.5rem' }}>
+          <h2>Student Results Entry &amp; View</h2>
+          <div className="inline-label" style={{ marginBottom:'1.5rem', marginTop:'1rem' }}>
             <label style={{ fontWeight:600 }}>Select Course Section:</label>
             <select
               value={selectedResultSec || ''}
@@ -382,13 +490,7 @@ export default function InstructorDashboard() {
           {selectedResultSec && (
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>Roll No</th>
-                  <th>Student Name</th>
-                  <th>Marks (Out of 100)</th>
-                  <th>Grade</th>
-                  <th>Workflow Status</th>
-                </tr>
+                <tr><th>Roll No</th><th>Student Name</th><th>Marks (Out of 100)</th><th>Grade</th><th>Workflow Status</th></tr>
               </thead>
               <tbody>
                 {resultStudents.map(st => {
@@ -398,165 +500,135 @@ export default function InstructorDashboard() {
                       <td><strong>{st.roll_number}</strong></td>
                       <td>{st.student_name}</td>
                       <td>{st.marks != null ? <strong>{st.marks} / 100</strong> : '—'}</td>
-                      <td>{st.letter_grade ? <span className="badge">{st.letter_grade}</span> : '—'}</td>
+                      <td><span className="badge">{st.letter_grade || '—'}</span></td>
                       <td>
-                        <span
-                          style={{
-                            display:'inline-block', padding:'0.2rem 0.6rem', borderRadius:'999px',
-                            fontSize:'0.75rem', fontWeight:700,
-                            color: sLabel.color, background: sLabel.bg
-                          }}
-                        >
+                        <span className="badge" style={{ background: sLabel.bg, color: sLabel.color }}>
                           {sLabel.label}
                         </span>
                       </td>
                     </tr>
                   );
                 })}
-                {resultStudents.length === 0 && (
-                  <tr><td colSpan={5} className="muted">No students enrolled or no marks entered yet.</td></tr>
-                )}
               </tbody>
             </table>
           )}
         </div>
       )}
 
-      {/* ==================================================== */}
-      {/* MODAL: ENTER MARKS (Default Full Marks = 100) */}
-      {/* ==================================================== */}
-      {marksModalSection && (
-        <div className="modal-overlay" style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="modal-content card" style={{ maxWidth:650, width:'95%', maxHeight:'85vh', overflowY:'auto', padding:'1.75rem' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
-              <div>
-                <h3 style={{ margin:0 }}>✏️ Enter Student Marks</h3>
-                <small className="muted">{marksModalSection.course_code} — {marksModalSection.course_title} (Full Marks: 100)</small>
-              </div>
-              <button type="button" className="btn btn-outline btn-sm" onClick={() => setMarksModalSection(null)}>✕ Close</button>
+      {/* ===== VIEW STUDENTS MODAL (NAME & ROLL NO ONLY) ===== */}
+      {viewStudentsModal && (
+        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }}>
+          <div className="card" style={{ maxWidth:500, width:'90%', maxHeight:'80vh', overflowY:'auto' }}>
+            <div className="card-header">
+              <h3>Enrolled Students ({viewStudentsModal.course_code})</h3>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setViewStudentsModal(null)}>Close</button>
             </div>
-
-            <form onSubmit={saveAllMarks}>
-              <table className="data-table" style={{ marginBottom:'1.5rem' }}>
-                <thead>
-                  <tr>
-                    <th>Roll No</th>
-                    <th>Student Name</th>
-                    <th>Full Marks</th>
-                    <th>Marks Obtained (0-100)</th>
+            <table className="data-table">
+              <thead><tr><th>Roll Number</th><th>Student Name</th></tr></thead>
+              <tbody>
+                {viewStudentsList.map(st => (
+                  <tr key={st.enrollment_id}>
+                    <td><strong>{st.roll_number}</strong></td>
+                    <td>{st.student_name}</td>
                   </tr>
-                </thead>
+                ))}
+                {viewStudentsList.length === 0 && (
+                  <tr><td colSpan={2} className="muted">No students currently enrolled.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ===== ENTER MARKS MODAL ===== */}
+      {marksModalSection && (
+        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }}>
+          <div className="card" style={{ maxWidth:650, width:'90%', maxHeight:'85vh', overflowY:'auto' }}>
+            <div className="card-header">
+              <h3>Enter Final Exam Marks (Out of 100) — {marksModalSection.course_code}</h3>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setMarksModalSection(null)}>Cancel</button>
+            </div>
+            <form onSubmit={saveAllMarks}>
+              <table className="data-table" style={{ marginBottom:'1rem' }}>
+                <thead><tr><th>Roll No</th><th>Student Name</th><th>Marks (0 - 100)</th></tr></thead>
                 <tbody>
                   {marksStudents.map(st => (
                     <tr key={st.enrollment_id}>
                       <td><strong>{st.roll_number}</strong></td>
                       <td>{st.student_name}</td>
-                      <td><span className="badge">100</span></td>
                       <td>
                         <input
                           type="number"
-                          min="0"
-                          max="100"
-                          step="0.5"
+                          min="0" max="100" step="0.5"
+                          placeholder="e.g. 85"
                           value={studentMarksInputs[st.enrollment_id] ?? ''}
                           onChange={e => setStudentMarksInputs({ ...studentMarksInputs, [st.enrollment_id]: e.target.value })}
-                          placeholder="Marks (0-100)"
-                          style={{ width:120, padding:'0.4rem', border:'1px solid var(--border)', borderRadius:6 }}
+                          style={{ width:100, padding:'0.4rem', border:'1px solid var(--border)', borderRadius:6 }}
                         />
                       </td>
                     </tr>
                   ))}
-                  {marksStudents.length === 0 && (
-                    <tr><td colSpan={4} className="muted">No students enrolled in this section</td></tr>
-                  )}
                 </tbody>
               </table>
-
-              <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.75rem' }}>
-                <button type="button" className="btn btn-outline" onClick={() => setMarksModalSection(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={savingMarks || marksStudents.length === 0}>
-                  {savingMarks ? 'Saving…' : '💾 Save Marks'}
-                </button>
-              </div>
+              <button type="submit" className="btn btn-primary" disabled={savingMarks}>
+                {savingMarks ? 'Saving...' : '💾 Save Marks'}
+              </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* ==================================================== */}
-      {/* MODAL: ADD / CHANGE TIMETABLE */}
-      {/* ==================================================== */}
+      {/* ===== TIMETABLE MODAL ===== */}
       {timetableSection && (
-        <div className="modal-overlay" style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="modal-content card" style={{ maxWidth:540, width:'95%', padding:'1.75rem' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
-              <h3 style={{ margin:0 }}>📅 Timetable & Room for {timetableSection.course_code}</h3>
-              <button type="button" className="btn btn-outline btn-sm" onClick={() => setTimetableSection(null)}>✕</button>
+        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }}>
+          <div className="card" style={{ maxWidth:550, width:'90%' }}>
+            <div className="card-header">
+              <h3>Update Timetable — {timetableSection.course_code}</h3>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setTimetableSection(null)}>Cancel</button>
             </div>
-
             <form onSubmit={saveTimetable}>
-              <div style={{ marginBottom:'1rem' }}>
-                <label style={{ fontWeight:600, display:'block', marginBottom:'0.5rem' }}>
-                  Room Number / Venue
-                  <input type="text" value={ttRoom} onChange={e => setTtRoom(e.target.value)} placeholder="e.g. Room 204" style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6, width:'100%', marginTop:'0.25rem' }} />
-                </label>
-              </div>
-
-              <div style={{ marginBottom:'1.5rem' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.5rem' }}>
-                  <strong style={{ fontSize:'0.875rem' }}>Schedule Days &amp; Timetable Slots ({ttSlots.length} Days)</strong>
-                  <button type="button" className="btn btn-outline btn-sm" onClick={addTtSlot}>
-                    + Add Another Day
-                  </button>
+              {ttSlots.map((slot, index) => (
+                <div key={index} style={{ display:'flex', gap:'0.5rem', marginBottom:'0.5rem', alignItems:'center' }}>
+                  <select
+                    value={slot.day_of_week}
+                    onChange={e => {
+                      const updated = [...ttSlots];
+                      updated[index].day_of_week = Number(e.target.value);
+                      setTtSlots(updated);
+                    }}
+                    style={{ padding:'0.4rem', borderRadius:6, border:'1px solid var(--border)' }}
+                  >
+                    {DAYS.map((d,i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
+                  <input
+                    type="time"
+                    value={slot.start_time}
+                    onChange={e => {
+                      const updated = [...ttSlots];
+                      updated[index].start_time = e.target.value;
+                      setTtSlots(updated);
+                    }}
+                    style={{ padding:'0.4rem', borderRadius:6, border:'1px solid var(--border)' }}
+                  />
+                  <input
+                    type="time"
+                    value={slot.end_time}
+                    onChange={e => {
+                      const updated = [...ttSlots];
+                      updated[index].end_time = e.target.value;
+                      setTtSlots(updated);
+                    }}
+                    style={{ padding:'0.4rem', borderRadius:6, border:'1px solid var(--border)' }}
+                  />
+                  {ttSlots.length > 1 && (
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => removeTtSlot(index)}>✕</button>
+                  )}
                 </div>
-
-                {ttSlots.map((slot, index) => (
-                  <div key={index} style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
-                    <select
-                      value={slot.day_of_week}
-                      onChange={e => {
-                        const updated = [...ttSlots];
-                        updated[index].day_of_week = Number(e.target.value);
-                        setTtSlots(updated);
-                      }}
-                      style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
-                    >
-                      {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                    </select>
-                    <input
-                      type="time"
-                      value={slot.start_time}
-                      onChange={e => {
-                        const updated = [...ttSlots];
-                        updated[index].start_time = e.target.value;
-                        setTtSlots(updated);
-                      }}
-                      required
-                      style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
-                    />
-                    <input
-                      type="time"
-                      value={slot.end_time}
-                      onChange={e => {
-                        const updated = [...ttSlots];
-                        updated[index].end_time = e.target.value;
-                        setTtSlots(updated);
-                      }}
-                      required
-                      style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
-                    />
-                    {ttSlots.length > 1 && (
-                      <button type="button" className="btn btn-danger btn-sm" onClick={() => removeTtSlot(index)}>
-                        ✕ Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.75rem' }}>
-                <button type="button" className="btn btn-outline" onClick={() => setTimetableSection(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Multi-Day Timetable</button>
+              ))}
+              <div style={{ display:'flex', gap:'0.5rem', marginTop:'1rem' }}>
+                <button type="button" className="btn btn-outline btn-sm" onClick={addTtSlot}>+ Add Day Slot</button>
+                <button type="submit" className="btn btn-primary btn-sm">Save Timetable</button>
               </div>
             </form>
           </div>

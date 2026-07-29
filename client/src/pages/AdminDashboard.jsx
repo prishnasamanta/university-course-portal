@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 const DEPTS = ['cs', 'eco', 'stat'];
 const LEVELS = ['btech', 'msc', 'mtech'];
@@ -15,6 +16,9 @@ const DEGREE_TILES = [
 ];
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const [tab, setTab] = useState('semesters');
   const [semesters, setSemesters] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -24,26 +28,36 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState(null);
   const [users, setUsers] = useState([]);
 
+  // Paper review & removal requests state
+  const [paperReviewRequests, setPaperReviewRequests] = useState([]);
+  const [removalRequests, setRemovalRequests] = useState([]);
+
   // Semester tab state
   const [selectedDegree, setSelectedDegree] = useState(null);
   const [showSemForm, setShowSemForm] = useState(false);
   const [newSem, setNewSem] = useState({ name: 'Semester 1', year: new Date().getFullYear() + 1 });
 
   // Course catalog state
+  const [catalogLevelFilter, setCatalogLevelFilter] = useState('all');
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [newCourse, setNewCourse] = useState({
     code: '', title: '', credits: 6, department: 'cs', degree_level: 'btech',
-    required_previous_degree: '', min_previous_grade: '', syllabus: '', prerequisite_ids: []
+    required_previous_degree: '', min_previous_grade: '', syllabus: ''
   });
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [courseStudentsModal, setCourseStudentsModal] = useState(null);
+  const [courseStudentsList, setCourseStudentsList] = useState([]);
 
   // Section state
   const [newSection, setNewSection] = useState({
-    course_id: '', semester_id: '', section_code: 'A', instructor_id: '', capacity: 60, room: '',
+    course_id: '', semester_id: '', section_code: 'A', instructor_id: '', capacity: 60,
     slots: [{ day_of_week: 1, start_time: '09:00', end_time: '11:00' }]
   });
 
-  // Course edit state
-  const [editingCourse, setEditingCourse] = useState(null);
+  // Users tab state (Sorting & Filter)
+  const [userRoleFilter, setUserRoleFilter] = useState('student'); // 'student' | 'instructor' | 'all'
+  const [sortField, setSortField] = useState('id');
+  const [sortDir, setSortDir] = useState('asc');
 
   // Exam section detail
   const [examDetail, setExamDetail] = useState(null);
@@ -57,14 +71,18 @@ export default function AdminDashboard() {
   const load = () => {
     Promise.all([
       api.getSemesters(), api.getCourses(), api.getInstructors(),
-      api.getExamRequests(), api.getWorkflowSections(), api.getUsers()
-    ]).then(([sems, crs, inst, er, wf, usr]) => {
+      api.getExamRequests(), api.getWorkflowSections(), api.getUsers(),
+      api.getStaffPaperReviewRequests().catch(() => []),
+      api.getStudentRemovalRequests().catch(() => [])
+    ]).then(([sems, crs, inst, er, wf, usr, pr, rm]) => {
       setSemesters(sems);
       setCourses(crs);
       setInstructors(inst);
       setExamRequests(er);
       setWorkflowSections(wf);
       setUsers(usr);
+      setPaperReviewRequests(pr);
+      setRemovalRequests(rm);
     }).catch(() => {});
   };
 
@@ -108,7 +126,7 @@ export default function AdminDashboard() {
       setShowCourseForm(false);
       setNewCourse({
         code: '', title: '', credits: 6, department: 'cs', degree_level: 'btech',
-        required_previous_degree: '', min_previous_grade: '', syllabus: '', prerequisite_ids: []
+        required_previous_degree: '', min_previous_grade: '', syllabus: ''
       });
       load();
     } catch (err) {
@@ -139,6 +157,30 @@ export default function AdminDashboard() {
     }
   };
 
+  const showCourseStudents = async (course) => {
+    setCourseStudentsModal(course);
+    try {
+      const list = await api.getCourseRegisteredStudents(course.id);
+      setCourseStudentsList(list);
+    } catch {
+      setCourseStudentsList([]);
+    }
+  };
+
+  const handleUnenroll = async (enrollmentId) => {
+    if (!window.confirm('Unenroll this student from this course?')) return;
+    try {
+      await api.unenrollStudent(enrollmentId);
+      flash('success', 'Student unenrolled.');
+      if (courseStudentsModal) {
+        showCourseStudents(courseStudentsModal);
+      }
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
   // ─── SECTION HANDLERS ───
   const createSection = async (e) => {
     e.preventDefault();
@@ -146,7 +188,7 @@ export default function AdminDashboard() {
       await api.createSection(newSection);
       flash('success', 'Section created with timetable!');
       setNewSection({
-        course_id: '', semester_id: '', section_code: 'A', instructor_id: '', capacity: 60, room: '',
+        course_id: '', semester_id: '', section_code: 'A', instructor_id: '', capacity: 60,
         slots: [{ day_of_week: 1, start_time: '09:00', end_time: '11:00' }]
       });
       load();
@@ -169,7 +211,7 @@ export default function AdminDashboard() {
     }));
   };
 
-  // ─── EXAM REGISTRATION HANDLERS ───
+  // ─── EXAM HANDLERS ───
   const openExamReg = async (sectionId) => {
     try {
       await api.openExamReg(sectionId);
@@ -184,6 +226,16 @@ export default function AdminDashboard() {
     try {
       await api.closeExamReg(sectionId);
       flash('success', 'Exam registration closed.');
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
+  const startExam = async (sectionId) => {
+    try {
+      await api.startExam(sectionId);
+      flash('success', 'Exam started!');
       load();
     } catch (err) {
       flash('error', err.message);
@@ -222,17 +274,90 @@ export default function AdminDashboard() {
     }
   };
 
-  // ─── USER MANAGEMENT HANDLER ───
-  const deleteUserAcc = async (userId, name) => {
-    if (!window.confirm(`Are you sure you want to delete ${name}? This will purge them and all their records from the database via SQL CASCADE.`)) return;
+  // ─── PAPER REVIEW HANDLERS ───
+  const handleForwardReview = async (requestId) => {
     try {
-      await api.deleteUser(userId);
-      flash('success', `User ${name} successfully deleted from database.`);
+      await api.forwardPaperReview(requestId);
+      flash('success', 'Review request forwarded to instructor.');
       load();
     } catch (err) {
       flash('error', err.message);
     }
   };
+
+  const handleFinalizeReview = async (requestId, decision) => {
+    try {
+      await api.finalizePaperReview(requestId, decision);
+      flash('success', `Paper review ${decision}d.`);
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
+  // ─── STUDENT REMOVAL HANDLERS ───
+  const handleMarkStudentForRemoval = async (studentId) => {
+    const reason = window.prompt('Enter reason for student removal request:');
+    if (reason === null) return;
+    try {
+      await api.requestStudentRemoval(studentId, reason);
+      flash('success', 'Student marked for removal. Request sent to HOD for approval.');
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
+  const handleExecuteRemovalDelete = async (removalId) => {
+    if (!window.confirm('Execute final student deletion from database? This action cannot be undone.')) return;
+    try {
+      await api.executeStudentRemovalDelete(removalId);
+      flash('success', 'Student successfully deleted from database.');
+      load();
+    } catch (err) {
+      flash('error', err.message);
+    }
+  };
+
+  // ─── USERS TAB SORTING & FILTERING ───
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(s => s === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const filteredUsers = users.filter(u => {
+    if (userRoleFilter === 'student') return u.role === 'student';
+    if (userRoleFilter === 'instructor') return u.role === 'instructor';
+    return true;
+  });
+
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    let valA = a[sortField] ?? '';
+    let valB = b[sortField] ?? '';
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+    if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+    if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Filter open semesters for section creation
+  const openSemesters = semesters.filter(s => s.registration_open === 1);
+
+  // Filter instructors by course department for section creation
+  const selectedCourseObj = courses.find(c => String(c.id) === String(newSection.course_id));
+  const filteredInstructorsForSection = instructors.filter(i => {
+    if (!selectedCourseObj) return true;
+    const cDept = (selectedCourseObj.department || '').toLowerCase();
+    const iDept = (i.department || '').toLowerCase();
+    if (!iDept || iDept === cDept) return true;
+    if ((cDept === 'cs' || cDept.includes('comp')) && (iDept === 'cs' || iDept.includes('comp'))) return true;
+    return false;
+  });
 
   // ─── TABS CONFIG ───
   const TABS = [
@@ -241,19 +366,21 @@ export default function AdminDashboard() {
     { id: 'sections', label: '📋 Create Section' },
     { id: 'users', label: `👥 User Accounts (${users.length})` },
     { id: 'exams', label: `📝 Exam Registration${examRequests.length ? ` (${examRequests.length})` : ''}` },
+    { id: 'paper-reviews', label: `📄 Paper Reviews${paperReviewRequests.length ? ` (${paperReviewRequests.length})` : ''}` },
     { id: 'workflow', label: '📊 Results Workflow' },
+    ...(isAdmin ? [{ id: 'removals', label: `⚠️ Removal Approvals (${removalRequests.filter(r => r.status === 'approved_by_hod').length})` }] : [])
   ];
 
   return (
     <div>
       <div className="page-header">
         <h1>Academic Office</h1>
-        <p>Manage degrees, courses, registration, exams, multi-day timetables and results workflow</p>
+        <p>Manage degree programs, courses, registration, exams, paper reviews, and user accounts</p>
       </div>
 
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
 
-      {/* Tab nav */}
+      {/* Tab Nav */}
       <div className="admin-tabs">
         {TABS.map(t => (
           <button
@@ -356,172 +483,168 @@ export default function AdminDashboard() {
 
       {/* ===== COURSE CATALOG TAB ===== */}
       {tab === 'catalog' && (
-        <div>
-          {/* Degree tiles for filtering */}
-          <div className="degree-tiles" style={{ marginBottom: '1rem' }}>
-            <button
-              type="button"
-              className={`degree-tile ${!selectedDegree ? 'selected' : ''}`}
-              onClick={() => setSelectedDegree(null)}
-            >
-              <span className="degree-tile-icon">🌐</span>
-              <span className="degree-tile-label">All Courses</span>
+        <div className="card">
+          <div className="card-header">
+            <h2>📚 Course Catalog</h2>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCourseForm(!showCourseForm)}>
+              {showCourseForm ? 'Cancel' : '+ New Course'}
             </button>
-            {DEGREE_TILES.map(deg => {
-              const count = courses.filter(c => c.degree_level === deg.level && c.department === deg.dept).length;
-              return (
-                <button
-                  key={deg.code}
-                  type="button"
-                  className={`degree-tile ${selectedDegree?.code === deg.code ? 'selected' : ''}`}
-                  style={{ '--tile-color': deg.color }}
-                  onClick={() => setSelectedDegree(deg)}
-                >
-                  <span className="degree-tile-icon">{deg.icon}</span>
-                  <span className="degree-tile-label">{deg.label} ({count})</span>
-                </button>
-              );
-            })}
           </div>
 
-          <div className="card">
-            <div className="card-header">
-              <h2>{selectedDegree ? `${selectedDegree.icon} ${selectedDegree.label} — Courses` : '📚 All Courses'}</h2>
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCourseForm(!showCourseForm)}>
-                {showCourseForm ? 'Cancel' : '+ Add New Course'}
-              </button>
-            </div>
+          {/* Level Filter */}
+          <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem' }}>
+            <button type="button" className={`btn btn-sm ${catalogLevelFilter === 'all' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setCatalogLevelFilter('all')}>All Degrees</button>
+            <button type="button" className={`btn btn-sm ${catalogLevelFilter === 'btech' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setCatalogLevelFilter('btech')}>B.Tech</button>
+            <button type="button" className={`btn btn-sm ${catalogLevelFilter === 'msc' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setCatalogLevelFilter('msc')}>M.Sc</button>
+            <button type="button" className={`btn btn-sm ${catalogLevelFilter === 'mtech' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setCatalogLevelFilter('mtech')}>M.Tech</button>
+          </div>
 
-            {/* Edit course modal */}
-            {editingCourse && (
-              <div className="modal-overlay" style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }} onClick={() => setEditingCourse(null)}>
-                <div className="modal-content card" style={{ maxWidth:550, width:'95%', padding:'1.75rem' }} onClick={e => e.stopPropagation()}>
-                  <h3 style={{ margin:'0 0 1rem' }}>✏️ Edit Course — {editingCourse.code}</h3>
-                  <form onSubmit={saveCourseEdit}>
-                    <div className="form-grid">
-                      <label>Course Code<input value={editingCourse.code} onChange={e => setEditingCourse({...editingCourse, code:e.target.value})} required /></label>
-                      <label>Title<input value={editingCourse.title} onChange={e => setEditingCourse({...editingCourse, title:e.target.value})} required /></label>
-                      <label>Credits<input type="number" value={editingCourse.credits} onChange={e => setEditingCourse({...editingCourse, credits:Number(e.target.value)})} required min={1} /></label>
-                      <label>Min Prev Grade<input value={editingCourse.min_previous_grade || ''} onChange={e => setEditingCourse({...editingCourse, min_previous_grade:e.target.value})} placeholder="Optional e.g. B" /></label>
-                    </div>
-                    <label>Syllabus<textarea value={editingCourse.syllabus || ''} onChange={e => setEditingCourse({...editingCourse, syllabus:e.target.value})} rows={3} /></label>
-                    <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.75rem', marginTop:'1rem' }}>
-                      <button type="button" className="btn btn-outline" onClick={() => setEditingCourse(null)}>Cancel</button>
-                      <button type="submit" className="btn btn-primary">Save Changes</button>
-                    </div>
-                  </form>
-                </div>
+          {showCourseForm && (
+            <form onSubmit={createCourse} style={{ display:'grid', gap:'0.75rem', marginBottom:'1.5rem', background:'var(--surface-hover)', padding:'1rem', borderRadius:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'0.75rem' }}>
+                <label>Course Code<input value={newCourse.code} onChange={e => setNewCourse({...newCourse, code: e.target.value})} placeholder="e.g. CS101" required /></label>
+                <label>Title<input value={newCourse.title} onChange={e => setNewCourse({...newCourse, title: e.target.value})} placeholder="e.g. Data Structures" required /></label>
+                <label>Credits<input type="number" value={newCourse.credits} onChange={e => setNewCourse({...newCourse, credits: Number(e.target.value)})} required /></label>
+                <label>Department
+                  <select value={newCourse.department} onChange={e => setNewCourse({...newCourse, department: e.target.value})}>
+                    {DEPTS.map(d => <option key={d} value={d}>{d.toUpperCase()}</option>)}
+                  </select>
+                </label>
+                <label>Degree Level
+                  <select value={newCourse.degree_level} onChange={e => setNewCourse({...newCourse, degree_level: e.target.value})}>
+                    {LEVELS.map(l => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
+                  </select>
+                </label>
               </div>
-            )}
+              <button type="submit" className="btn btn-primary" style={{ justifySelf:'start' }}>Create Course</button>
+            </form>
+          )}
 
-            {/* Add new course form */}
-            {showCourseForm && (
-              <form onSubmit={createCourse} className="course-form" style={{ marginBottom:'1.5rem', padding:'1rem', background:'var(--surface)', borderRadius:8 }}>
-                <div className="form-grid">
-                  <label>Code<input value={newCourse.code} onChange={e => setNewCourse({...newCourse, code:e.target.value})} required placeholder="CS104" /></label>
-                  <label>Title<input value={newCourse.title} onChange={e => setNewCourse({...newCourse, title:e.target.value})} required placeholder="Operating Systems" /></label>
-                  <label>Credits<input type="number" value={newCourse.credits} onChange={e => setNewCourse({...newCourse, credits:e.target.value})} required min={1} /></label>
-                  <label>Department
-                    <select value={newCourse.department} onChange={e => setNewCourse({...newCourse, department:e.target.value})}>
-                      {DEPTS.map(d => <option key={d} value={d}>{d.toUpperCase()}</option>)}
-                    </select>
-                  </label>
-                  <label>Degree Level
-                    <select value={newCourse.degree_level} onChange={e => setNewCourse({...newCourse, degree_level:e.target.value})}>
-                      {LEVELS.map(l => <option key={l} value={l}>{LEVEL_LABELS[l]}</option>)}
-                    </select>
-                  </label>
-                  <label>Min Prev Grade<input value={newCourse.min_previous_grade} onChange={e => setNewCourse({...newCourse, min_previous_grade:e.target.value})} placeholder="Optional e.g. B" /></label>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Title</th>
+                <th>Credits</th>
+                <th>Degree & Dept</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {courses
+                .filter(c => catalogLevelFilter === 'all' || c.degree_level === catalogLevelFilter)
+                .map(c => (
+                  <tr key={c.id}>
+                    <td><strong>{c.code}</strong></td>
+                    <td>{c.title}</td>
+                    <td>{c.credits}</td>
+                    <td><span className="badge">{LEVEL_LABELS[c.degree_level] || c.degree_level} ({c.department?.toUpperCase()})</span></td>
+                    <td className="actions">
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditingCourse(c)}>✏️ Edit</button>
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => showCourseStudents(c)}>👥 Show Students</button>
+                      <button type="button" className="btn btn-danger btn-sm" onClick={() => deleteCourseItem(c.id, c.code)}>🗑️ Delete</button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+
+          {/* Edit Course Modal */}
+          {editingCourse && (
+            <div style={{ marginTop:'1.5rem', borderTop:'2px solid var(--primary)', paddingTop:'1rem' }}>
+              <h3>Edit Course: {editingCourse.code}</h3>
+              <form onSubmit={saveCourseEdit} style={{ display:'grid', gap:'0.75rem' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'0.75rem' }}>
+                  <label>Code<input value={editingCourse.code} onChange={e => setEditingCourse({...editingCourse, code:e.target.value})} /></label>
+                  <label>Title<input value={editingCourse.title} onChange={e => setEditingCourse({...editingCourse, title:e.target.value})} /></label>
+                  <label>Credits<input type="number" value={editingCourse.credits} onChange={e => setEditingCourse({...editingCourse, credits:Number(e.target.value)})} /></label>
                 </div>
-                <label>Syllabus<textarea value={newCourse.syllabus} onChange={e => setNewCourse({...newCourse, syllabus:e.target.value})} rows={3} /></label>
-                <button type="submit" className="btn btn-primary" style={{ marginTop:'0.75rem' }}>Add Course to Database</button>
+                <div style={{ display:'flex', gap:'0.5rem' }}>
+                  <button type="submit" className="btn btn-primary">Save Changes</button>
+                  <button type="button" className="btn btn-outline" onClick={() => setEditingCourse(null)}>Cancel</button>
+                </div>
               </form>
-            )}
+            </div>
+          )}
 
-            {/* Courses grouped by degree */}
-            {(selectedDegree ? [selectedDegree] : DEGREE_TILES).map(deg => {
-              const degCourses = courses.filter(c => c.degree_level === deg.level && c.department === deg.dept);
-              if (degCourses.length === 0 && selectedDegree) {
-                return (
-                  <div key={deg.code} style={{ textAlign:'center', padding:'2rem', color:'var(--muted)' }}>
-                    <p>No courses found for {deg.label}. Use the <strong>+ Add New Course</strong> button above to create one.</p>
-                  </div>
-                );
-              }
-              if (degCourses.length === 0) return null;
-              return (
-                <div key={deg.code} style={{ marginBottom:'1.5rem' }}>
-                  <h3 style={{ color: deg.color, marginBottom:'0.5rem', fontSize:'1rem', display:'flex', alignItems:'center', gap:'0.5rem' }}>
-                    <span>{deg.icon}</span> <span>{deg.label}</span>
-                  </h3>
-                  <table className="data-table">
-                    <thead><tr><th>Code</th><th>Title</th><th>Credits</th><th>Min Grade</th><th>Actions</th></tr></thead>
-                    <tbody>
-                      {degCourses.map(c => (
-                        <tr key={c.id}>
-                          <td><strong>{c.code}</strong></td>
-                          <td>{c.title}</td>
-                          <td><span className="badge">{c.credits} cr</span></td>
-                          <td>{c.min_previous_grade || '—'}</td>
-                          <td className="actions" style={{ display:'flex', gap:'0.5rem' }}>
-                            <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditingCourse({...c})}>
-                              ✏️ Edit
-                            </button>
-                            <button type="button" className="btn btn-danger btn-sm" onClick={() => deleteCourseItem(c.id, c.code)}>
-                              🗑️ Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
-          </div>
+          {/* Course Registered Students Modal */}
+          {courseStudentsModal && (
+            <div style={{ marginTop:'1.5rem', borderTop:'2px solid var(--primary)', paddingTop:'1rem' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <h3>Enrolled Students for {courseStudentsModal.code} — {courseStudentsModal.title}</h3>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => setCourseStudentsModal(null)}>Close</button>
+              </div>
+              <table className="data-table" style={{ marginTop:'0.75rem' }}>
+                <thead>
+                  <tr><th>Roll No</th><th>Name</th><th>Email</th><th>Section</th><th>Enrolled At</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                  {courseStudentsList.map(st => (
+                    <tr key={st.enrollment_id}>
+                      <td><strong>{st.roll_number}</strong></td>
+                      <td>{st.student_name}</td>
+                      <td>{st.student_email}</td>
+                      <td>Section {st.section_code}</td>
+                      <td>{st.enrolled_at ? new Date(st.enrolled_at).toLocaleDateString() : '—'}</td>
+                      <td>
+                        <button type="button" className="btn btn-danger btn-sm" onClick={() => handleUnenroll(st.enrollment_id)}>
+                          Unenroll
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {courseStudentsList.length === 0 && (
+                    <tr><td colSpan={6} className="muted">No students currently enrolled in this course.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {/* ===== CREATE SECTION TAB ===== */}
       {tab === 'sections' && (
         <div className="card">
-          <h2>Create Section (Assign Instructor + Timetable)</h2>
-          <p className="muted" style={{ marginBottom:'1rem' }}>Only sections with instructors appear in student registration.</p>
-          <form onSubmit={createSection} className="course-form">
-            <div className="form-grid">
+          <div className="card-header">
+            <h2>📋 Create Course Section & Schedule</h2>
+          </div>
+          <form onSubmit={createSection} style={{ display:'grid', gap:'1rem' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'0.75rem' }}>
               <label>Course
-                <select value={newSection.course_id} onChange={e => setNewSection({...newSection, course_id:e.target.value})} required>
+                <select value={newSection.course_id} onChange={e => setNewSection({...newSection, course_id:e.target.value, instructor_id:''})} required>
                   <option value="">Select course</option>
-                  {DEGREE_TILES.map(deg => (
-                    <optgroup key={deg.code} label={deg.label}>
-                      {courses.filter(c => c.degree_level===deg.level && c.department===deg.dept)
-                        .map(c => <option key={c.id} value={c.id}>{c.code} — {c.title}</option>)}
-                    </optgroup>
+                  {courses.map(c => (
+                    <option key={c.id} value={c.id}>{c.code} — {c.title} ({c.department?.toUpperCase()})</option>
                   ))}
                 </select>
               </label>
-              <label>Semester
+
+              <label>Open Semester
                 <select value={newSection.semester_id} onChange={e => setNewSection({...newSection, semester_id:e.target.value})} required>
-                  <option value="">Select semester</option>
-                  {semesters.map(s => <option key={s.id} value={s.id}>{s.name} {s.year}</option>)}
+                  <option value="">Select open semester</option>
+                  {openSemesters.map(s => <option key={s.id} value={s.id}>{s.name} {s.year}</option>)}
                 </select>
+                {openSemesters.length === 0 && <small style={{ color:'var(--danger)', display:'block' }}>No semesters are open for registration!</small>}
               </label>
-              <label>Instructor
+
+              <label>Instructor (Filtered by Course Dept)
                 <select value={newSection.instructor_id} onChange={e => setNewSection({...newSection, instructor_id:e.target.value})} required>
                   <option value="">Select instructor</option>
-                  {instructors.map(i => <option key={i.id} value={i.id}>{i.name} ({i.department})</option>)}
+                  {filteredInstructorsForSection.map(i => (
+                    <option key={i.id} value={i.id}>{i.name} ({i.department || 'CS'})</option>
+                  ))}
                 </select>
               </label>
+
               <label>Section Code<input value={newSection.section_code} onChange={e => setNewSection({...newSection, section_code:e.target.value})} /></label>
               <label>Capacity<input type="number" value={newSection.capacity} onChange={e => setNewSection({...newSection, capacity:e.target.value})} /></label>
-              <label>Room<input value={newSection.room} onChange={e => setNewSection({...newSection, room:e.target.value})} placeholder="e.g. Room 101" /></label>
             </div>
+
             <div style={{ marginBottom:'1rem' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.5rem' }}>
-                <strong style={{ fontSize:'0.875rem' }}>Schedule Days &amp; Timetable Slots ({newSection.slots.length} Days)</strong>
-                <button type="button" className="btn btn-outline btn-sm" onClick={addSlot}>
-                  + Add Another Day
-                </button>
+                <strong style={{ fontSize:'0.875rem' }}>Schedule Days & Timetable Slots ({newSection.slots.length} Days)</strong>
+                <button type="button" className="btn btn-outline btn-sm" onClick={addSlot}>+ Add Day</button>
               </div>
               {newSection.slots.map((slot, index) => (
                 <div key={index} style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', alignItems:'center', flexWrap:'wrap' }}>
@@ -557,43 +680,51 @@ export default function AdminDashboard() {
                     style={{ padding:'0.5rem', border:'1px solid var(--border)', borderRadius:6 }}
                   />
                   {newSection.slots.length > 1 && (
-                    <button type="button" className="btn btn-danger btn-sm" onClick={() => removeSlot(index)}>
-                      ✕ Remove Day
-                    </button>
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => removeSlot(index)}>✕ Remove</button>
                   )}
                 </div>
               ))}
             </div>
+
             <button type="submit" className="btn btn-primary">Create Section with Timetable</button>
           </form>
         </div>
       )}
 
-      {/* ===== USER ACCOUNTS TAB (DELETE / MANAGE USERS) ===== */}
+      {/* ===== USER ACCOUNTS TAB ===== */}
       {tab === 'users' && (
         <div className="card">
           <div className="card-header">
-            <h2>👥 Database User Accounts & Management</h2>
-            <p className="muted" style={{ margin:0 }}>Manage or delete students, instructors, and staff accounts directly from the database.</p>
+            <h2>👥 Database User Accounts</h2>
+            <div style={{ display:'flex', gap:'0.5rem' }}>
+              <button type="button" className={`btn btn-sm ${userRoleFilter === 'student' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setUserRoleFilter('student')}>👨‍🎓 Students ({users.filter(u => u.role === 'student').length})</button>
+              <button type="button" className={`btn btn-sm ${userRoleFilter === 'instructor' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setUserRoleFilter('instructor')}>👨‍🏫 Instructors ({users.filter(u => u.role === 'instructor').length})</button>
+              <button type="button" className={`btn btn-sm ${userRoleFilter === 'all' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setUserRoleFilter('all')}>🌐 All Users ({users.length})</button>
+            </div>
           </div>
 
           <table className="data-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Details (Roll / Emp ID)</th>
-                <th>Actions</th>
+                <th onClick={() => handleSort('id')} style={{ cursor:'pointer' }}>ID {sortField === 'id' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                <th onClick={() => handleSort('roll_number')} style={{ cursor:'pointer' }}>Roll / Emp ID {sortField === 'roll_number' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                <th onClick={() => handleSort('name')} style={{ cursor:'pointer' }}>Name {sortField === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                <th onClick={() => handleSort('email')} style={{ cursor:'pointer' }}>Email {sortField === 'email' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                <th>Password</th>
+                <th onClick={() => handleSort('department')} style={{ cursor:'pointer' }}>Dept / Program {sortField === 'department' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                <th onClick={() => handleSort('role')} style={{ cursor:'pointer' }}>Role {sortField === 'role' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                {isAdmin && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {sortedUsers.map(u => (
                 <tr key={u.id}>
                   <td><strong>#{u.id}</strong></td>
+                  <td>{u.role === 'student' ? (u.roll_number || 'STU') : (u.employee_id || 'EMP')}</td>
                   <td>{u.name}</td>
                   <td>{u.email}</td>
+                  <td><code>{u.password || 'pass1234'}</code></td>
+                  <td>{u.role === 'student' ? (u.program_code || 'BTECH-CS') : (u.department?.toUpperCase() || 'CS')}</td>
                   <td>
                     <span className="badge" style={{
                       background: u.role === 'student' ? '#eef2ff' : u.role === 'instructor' ? '#e0f2fe' : u.role === 'admin' ? '#fee2e2' : '#f3f4f6',
@@ -602,27 +733,19 @@ export default function AdminDashboard() {
                       {u.role.toUpperCase()}
                     </span>
                   </td>
-                  <td>
-                    {u.role === 'student' ? `${u.roll_number || 'STU'} (${u.program_code || 'BTECH'})` :
-                     u.role === 'instructor' ? `${u.employee_id || 'EMP'} (${u.department || 'CS'})` : '—'}
-                  </td>
-                  <td>
-                    {u.role !== 'admin' ? (
-                      <button
-                        type="button"
-                        className="btn btn-danger btn-sm"
-                        onClick={() => deleteUserAcc(u.id, u.name)}
-                      >
-                        🗑️ Delete User
-                      </button>
-                    ) : (
-                      <small className="muted">Admin Account</small>
-                    )}
-                  </td>
+                  {isAdmin && (
+                    <td>
+                      {u.role === 'student' && (
+                        <button type="button" className="btn btn-danger btn-sm" onClick={() => handleMarkStudentForRemoval(u.student_id || u.id)}>
+                          ⚠️ Mark for Removal
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
-              {users.length === 0 && (
-                <tr><td colSpan={6} className="muted">No user accounts found in database.</td></tr>
+              {sortedUsers.length === 0 && (
+                <tr><td colSpan={isAdmin ? 8 : 7} className="muted">No matching user accounts found.</td></tr>
               )}
             </tbody>
           </table>
@@ -636,7 +759,7 @@ export default function AdminDashboard() {
             <div className="card">
               <div style={{ textAlign:'center', padding:'2rem', color:'var(--muted)' }}>
                 <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>📝</div>
-                <p>No exam requests yet. Instructors will appear here when they request to conduct an exam.</p>
+                <p>No exam requests yet. Instructors will appear here when they request an exam.</p>
               </div>
             </div>
           ) : (
@@ -657,6 +780,11 @@ export default function AdminDashboard() {
                         🔒 Close Exam Registration
                       </button>
                     )}
+                    {!sec.exam_reg_open && !sec.exam_started && (
+                      <button type="button" className="btn btn-success btn-sm" onClick={() => startExam(sec.section_id)}>
+                        ▶️ Start Exam
+                      </button>
+                    )}
                     <button type="button" className="btn btn-outline btn-sm" onClick={() => loadExamDetail(examDetail === sec.section_id ? null : sec.section_id)}>
                       👥 View Registrations
                     </button>
@@ -666,8 +794,10 @@ export default function AdminDashboard() {
                 <div style={{ display:'flex', gap:'1.5rem', marginTop:'0.5rem', fontSize:'0.875rem', flexWrap:'wrap' }}>
                   <span>Total enrolled: <strong>{sec.enrolled_count}</strong></span>
                   <span>Exam registered: <strong>{sec.exam_registered_count}</strong></span>
-                  <span>Status: {sec.exam_reg_open
-                    ? <span className="badge success">Exam Reg Open</span>
+                  <span>Status: {sec.exam_started
+                    ? <span className="badge success">Exam Done / Started</span>
+                    : sec.exam_reg_open
+                    ? <span className="badge warning">Exam Reg Open</span>
                     : <span className="badge">Exam Reg Closed</span>}
                   </span>
                 </div>
@@ -691,9 +821,6 @@ export default function AdminDashboard() {
                             <td>{r.registered_at ? new Date(r.registered_at).toLocaleString() : '—'}</td>
                           </tr>
                         ))}
-                        {examDetailRows.length === 0 && (
-                          <tr><td colSpan={4} className="muted">No students enrolled in this section</td></tr>
-                        )}
                       </tbody>
                     </table>
                   </div>
@@ -704,62 +831,151 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ===== PAPER REVIEWS TAB ===== */}
+      {tab === 'paper-reviews' && (
+        <div className="card">
+          <div className="card-header">
+            <h2>📄 Student Paper Review & Revision Requests</h2>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr><th>Course</th><th>Student</th><th>Roll No</th><th>Reason</th><th>Current Mark</th><th>Revised Mark</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {paperReviewRequests.map(r => (
+                <tr key={r.request_id}>
+                  <td><strong>{r.course_code}</strong></td>
+                  <td>{r.student_name}</td>
+                  <td>{r.roll_number}</td>
+                  <td>{r.reason}</td>
+                  <td>{r.old_value ?? '—'}</td>
+                  <td><strong>{r.new_value ?? '—'}</strong></td>
+                  <td><span className="badge">{r.status}</span></td>
+                  <td className="actions">
+                    {r.status === 'pending_staff_review' && (
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => handleForwardReview(r.request_id)}>
+                        📤 Forward to Instructor
+                      </button>
+                    )}
+                    {r.status === 'instructor_rechecked' && (
+                      <>
+                        <button type="button" className="btn btn-success btn-sm" onClick={() => handleFinalizeReview(r.request_id, 'approve')}>
+                          ✅ Approve Grade
+                        </button>
+                        <button type="button" className="btn btn-danger btn-sm" onClick={() => handleFinalizeReview(r.request_id, 'reject')}>
+                          ❌ Reject
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {paperReviewRequests.length === 0 && (
+                <tr><td colSpan={8} className="muted">No paper review requests found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* ===== RESULTS WORKFLOW TAB ===== */}
       {tab === 'workflow' && (
         <div>
-          {workflowSections.length === 0 ? (
-            <div className="card">
-              <div style={{ textAlign:'center', padding:'2rem', color:'var(--muted)' }}>
-                <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>📊</div>
-                <p>No results to review yet. Results appear here after instructors submit marks.</p>
-              </div>
-            </div>
-          ) : (
-            workflowSections.map(sec => (
-              <div key={sec.id} className="card" style={{ marginBottom:'1rem' }}>
-                <div className="card-header" style={{ flexWrap:'wrap', gap:'0.5rem' }}>
-                  <div>
-                    <h3 style={{ margin:0 }}>{sec.course_code} — {sec.course_title} ({sec.section_code})</h3>
-                    <small className="muted">👨‍🏫 {sec.instructor_name} · {sec.semester_name} {sec.year}</small>
-                  </div>
-                  <div className="actions" style={{ flexWrap:'wrap' }}>
-                    {sec.pending_forward > 0 && (
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => api.forwardToHod(sec.id).then(() => { flash('success', 'Forwarded to HOD'); load(); })}>
-                        📤 Forward to HOD ({sec.pending_forward})
-                      </button>
-                    )}
-                    {sec.pending_publish > 0 && (
-                      <button type="button" className="btn btn-success btn-sm" onClick={() => api.publishResults(sec.id).then(() => { flash('success', 'Results published!'); load(); })}>
-                        🎉 Distribute Results ({sec.pending_publish})
-                      </button>
-                    )}
-                    <button type="button" className="btn btn-outline btn-sm" onClick={() => loadWfDetail(sec.id)}>
-                      📋 View Details
-                    </button>
-                  </div>
-                </div>
+          {LEVELS.map(level => {
+            const levelSections = workflowSections.filter(s => (s.degree_level || 'btech') === level);
+            if (levelSections.length === 0) return null;
+            return (
+              <div key={level} style={{ marginBottom:'2rem' }}>
+                <h2 style={{ borderBottom:'2px solid var(--primary)', paddingBottom:'0.5rem', marginBottom:'1rem' }}>
+                  {LEVEL_LABELS[level]} Degree Results Workflow
+                </h2>
+                {levelSections.map(sec => (
+                  <div key={sec.id} className="card" style={{ marginBottom:'1rem' }}>
+                    <div className="card-header" style={{ flexWrap:'wrap', gap:'0.5rem' }}>
+                      <div>
+                        <h3 style={{ margin:0 }}>{sec.course_code} — {sec.course_title} ({sec.section_code})</h3>
+                        <small className="muted">👨‍🏫 {sec.instructor_name} · {sec.semester_name} {sec.year}</small>
+                      </div>
+                      <div className="actions" style={{ flexWrap:'wrap' }}>
+                        {sec.pending_forward > 0 && (
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => api.forwardToHod(sec.id).then(() => { flash('success', 'Forwarded to HOD'); load(); })}>
+                            📤 Forward to HOD ({sec.pending_forward})
+                          </button>
+                        )}
+                        {sec.pending_publish > 0 && (
+                          <button type="button" className="btn btn-success btn-sm" onClick={() => api.publishResults(sec.id).then(() => { flash('success', 'Results published!'); load(); })}>
+                            🎉 Distribute Results ({sec.pending_publish})
+                          </button>
+                        )}
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => loadWfDetail(sec.id)}>
+                          📋 View Details
+                        </button>
+                      </div>
+                    </div>
 
-                {wfSection?.id === sec.id && (
-                  <div style={{ marginTop:'1rem', borderTop:'1px solid var(--border)', paddingTop:'1rem' }}>
-                    <table className="data-table">
-                      <thead><tr><th>Roll No</th><th>Student</th><th>Marks</th><th>Grade</th><th>Status</th></tr></thead>
-                      <tbody>
-                        {wfStudents.map(s => (
-                          <tr key={s.enrollment_id}>
-                            <td>{s.roll_number}</td>
-                            <td>{s.student_name}</td>
-                            <td>{s.marks ?? '—'}</td>
-                            <td>{s.letter_grade ?? '—'}</td>
-                            <td><span className="status-badge">{s.status_label}</span></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    {wfSection?.id === sec.id && (
+                      <div style={{ marginTop:'1rem', borderTop:'1px solid var(--border)', paddingTop:'1rem' }}>
+                        <table className="data-table">
+                          <thead><tr><th>Roll No</th><th>Student</th><th>Marks</th><th>Grade</th><th>Status</th></tr></thead>
+                          <tbody>
+                            {wfStudents.map(s => (
+                              <tr key={s.enrollment_id}>
+                                <td>{s.roll_number}</td>
+                                <td>{s.student_name}</td>
+                                <td>{s.marks ?? '—'}</td>
+                                <td>{s.letter_grade ?? '—'}</td>
+                                <td><span className="status-badge">{s.status_label}</span></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))
-          )}
+            );
+          })}
+        </div>
+      )}
+
+      {/* ===== ADMIN REMOVAL APPROVALS TAB ===== */}
+      {isAdmin && tab === 'removals' && (
+        <div className="card">
+          <div className="card-header">
+            <h2>⚠️ HOD Approved Student Removal Requests</h2>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr><th>Roll No</th><th>Student Name</th><th>Email</th><th>Program</th><th>Reason</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {removalRequests.map(r => (
+                <tr key={r.removal_id}>
+                  <td><strong>{r.roll_number}</strong></td>
+                  <td>{r.student_name}</td>
+                  <td>{r.student_email}</td>
+                  <td>{r.program_name}</td>
+                  <td>{r.reason}</td>
+                  <td>
+                    <span className={`badge ${r.status === 'approved_by_hod' ? 'success' : ''}`}>
+                      {r.status}
+                    </span>
+                  </td>
+                  <td>
+                    {r.status === 'approved_by_hod' && (
+                      <button type="button" className="btn btn-danger btn-sm" onClick={() => handleExecuteRemovalDelete(r.removal_id)}>
+                        🗑️ Confirm Final Deletion
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {removalRequests.length === 0 && (
+                <tr><td colSpan={7} className="muted">No student removal requests.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

@@ -109,6 +109,7 @@ export async function initPostgres() {
         room VARCHAR(100),
         exam_requested INTEGER DEFAULT 0,
         exam_reg_open INTEGER DEFAULT 0,
+        exam_started INTEGER DEFAULT 0,
         UNIQUE (course_id, semester_id, section_code)
       );
 
@@ -134,6 +135,16 @@ export async function initPostgres() {
         id SERIAL PRIMARY KEY,
         enrollment_id INTEGER UNIQUE REFERENCES enrollments(id) ON DELETE CASCADE,
         registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS student_removal_requests (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+        requested_by_admin INTEGER REFERENCES users(id),
+        reason TEXT,
+        status VARCHAR(50) DEFAULT 'pending_hod_approval',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reviewed_at TIMESTAMP
       );
 
       CREATE TABLE IF NOT EXISTS course_results (
@@ -300,6 +311,7 @@ export async function initPostgres() {
 
     await client.query(`ALTER TABLE marks_revision_requests ADD COLUMN IF NOT EXISTS forwarded_by INTEGER REFERENCES users(id)`).catch(() => {});
     await client.query(`ALTER TABLE marks_revision_requests ADD COLUMN IF NOT EXISTS instructor_remarks TEXT`).catch(() => {});
+    await client.query(`ALTER TABLE sections ADD COLUMN IF NOT EXISTS exam_started INTEGER DEFAULT 0`).catch(() => {});
 
     // Fix sections.instructor_id FK to reference users instead of instructors
     await client.query(`
@@ -472,7 +484,7 @@ export async function initPostgres() {
     }
 
     // Reset PostgreSQL SERIAL Sequences to MAX(id)
-    const seqTables = ['users', 'students', 'courses', 'sections', 'semesters', 'programs', 'section_schedule_slots', 'enrollments', 'exam_registrations', 'assessment_components', 'marks', 'marks_revision_requests', 'grading_policy', 'instructor_teaching_preferences'];
+    const seqTables = ['users', 'students', 'courses', 'sections', 'semesters', 'programs', 'section_schedule_slots', 'enrollments', 'exam_registrations', 'assessment_components', 'marks', 'marks_revision_requests', 'grading_policy', 'instructor_teaching_preferences', 'student_removal_requests'];
     for (const t of seqTables) {
       await client.query(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), COALESCE((SELECT MAX(id) FROM ${t}), 1))`).catch(() => {});
     }

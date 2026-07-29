@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS sections (
   room TEXT,
   exam_requested INTEGER NOT NULL DEFAULT 0,
   exam_reg_open INTEGER NOT NULL DEFAULT 0,
+  exam_started INTEGER NOT NULL DEFAULT 0,
   UNIQUE (course_id, semester_id, section_code)
 );
 
@@ -180,6 +181,16 @@ CREATE TABLE IF NOT EXISTS exam_registrations (
   enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
   registered_at TEXT DEFAULT (datetime('now')),
   UNIQUE(enrollment_id)
+);
+
+CREATE TABLE IF NOT EXISTS student_removal_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  requested_by_admin INTEGER NOT NULL REFERENCES users(id),
+  reason TEXT,
+  status TEXT NOT NULL DEFAULT 'pending_hod_approval' CHECK (status IN ('pending_hod_approval', 'approved_by_hod', 'rejected_by_hod', 'completed')),
+  created_at TEXT DEFAULT (datetime('now')),
+  reviewed_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_sections_semester ON sections(semester_id);

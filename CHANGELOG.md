@@ -2,7 +2,37 @@
 
 All notable changes to the backend are documented here.
 
-## [2026-07-29] Paper Review Workflow, Course Creation Fix & Student Registration Fixes
+## [2026-07-29] Role Workflows, Exam State Transitions, Student Removal Approvals & Paper Review Pipeline
+
+### Academic Staff Updates
+- **Semesters**: Semester registration rule enforced (new semester cannot be created while previous semester registration is open).
+- **Course Catalog**: Degree level filtering (B.Tech, M.Sc, M.Tech) with `Show Students` action listing enrolled students.
+- **Section Creation**: Filtered semester dropdown to open registration semesters only. Filtered instructor dropdown to course department only. Removed room input field.
+- **User Accounts**: Dual toggle buttons for `[ Students ]` and `[ Instructors ]`. Displays plain text passwords and all user attributes. Table columns feature interactive multi-attribute sorting (`↑`/`↓` indicators). View-only permissions for staff.
+- **Exam Workflow**: Added `"Start Exam"` action button after exam registration is closed, transitioning section to `exam_started = 1` ("Exam Done / Started").
+- **Results Workflow**: Grouped sections by Degree Level (B.Tech, M.Sc, M.Tech).
+
+### Instructor Updates
+- **Dashboard & Course Access**: Filtered main course list to instructor's department courses (e.g. CSE). Added sub-tab for all university courses. Displayed course cards without room field.
+- **State-Dependent Action Buttons**:
+  - **Before Exam Started**: `Request Exam` (with `Cancel Request` button active until AC staff opens exam reg), `Change Timetable`, `View Students` (Name & Roll No only). `Enter Marks` hidden.
+  - **After Exam Started**: `Enter Marks`, `Change Timetable`, `View Students`.
+- **Revision Requests Sub-Tab**: Instructor re-checks paper review requests forwarded to them, enters revised marks & remarks, updating DB live.
+
+### Department Head Updates
+- **Categorized Review**: Courses grouped by Degree Level (B.Tech, M.Sc, M.Tech). Clicking `Review` opens nested inline grade review directly under the course row.
+- **Student Removal Approvals**: Added HOD approval tab for student removal requests submitted by Admin.
+
+### Administrator Updates
+- **User & Course Oversight**: Categorized results workflow by degree level.
+- **Student Removal Pipeline**: Admin marks student for removal -> HOD approves -> Admin executes final CASCADE deletion from DB.
+
+### Student Updates
+- **Sign-up & Profile Setup**: Displays auto-generated Roll Number at the top. Collects Name, Email, Department, Enrolled Degree (filtered by department), Previous Degree/Grade, Current Semester.
+- **Course Registration**: Highlights department & degree courses at top.
+- **Exam Registration**: Synchronized dedicated tab with dashboard exam registration widget.
+- **Grade Card**: Semester selector lists ONLY semesters the student was enrolled in via `api.getMySemesters()`.
+- **Transcript & Paper Review**: Single-request limit per course. Displays `"Review Ongoing"` badge while paper review is in progress. Re-entered marks update transcript live.
 
 ### Course Registered Students Listing & Admin Unenrollment
 - Added `/api/workflow/courses/:courseId/students` & `/api/workflow/sections/:sectionId/registered-students` endpoints for Teachers, Academic Staff, and Admin to view all enrolled students with timetable slot & grade info.

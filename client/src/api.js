@@ -126,4 +126,34 @@ export const api = {
   getRevisionRequests: () => request('/instructor/revision-requests'),
   reviewRevision: (id, status) =>
     request(`/instructor/revision-requests/${id}/review`, { method: 'POST', body: JSON.stringify({ status }) }),
+
+  // Exam workflow
+  startExam: (sectionId) => request(`/workflow/sections/${sectionId}/start-exam`, { method: 'POST' }),
+
+  // Paper review / revision requests
+  requestPaperReview: (enrollment_id, reason) =>
+    request('/workflow/paper-review/request', { method: 'POST', body: JSON.stringify({ enrollment_id, reason }) }),
+  getMyPaperReviewRequests: () => request('/workflow/paper-review/my-requests'),
+  getStaffPaperReviewRequests: () => request('/workflow/paper-review/staff-requests'),
+  forwardPaperReview: (requestId) =>
+    request(`/workflow/paper-review/${requestId}/forward`, { method: 'POST' }),
+  getInstructorPaperReviewRequests: () => request('/workflow/paper-review/instructor-requests'),
+  recheckPaperReview: (requestId, new_value, instructor_remarks) =>
+    request(`/workflow/paper-review/${requestId}/recheck`, { method: 'POST', body: JSON.stringify({ new_value, instructor_remarks }) }),
+  finalizePaperReview: (requestId, decision) =>
+    request(`/workflow/paper-review/${requestId}/finalize`, { method: 'POST', body: JSON.stringify({ decision }) }),
+
+  // Student removal approval workflow
+  requestStudentRemoval: (studentId, reason) =>
+    request(`/workflow/students/${studentId}/request-removal`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getStudentRemovalRequests: () => request('/workflow/removal-requests'),
+  hodReviewStudentRemoval: (id, decision) =>
+    request(`/workflow/removal-requests/${id}/hod-review`, { method: 'POST', body: JSON.stringify({ decision }) }),
+  executeStudentRemovalDelete: (id) =>
+    request(`/workflow/removal-requests/${id}/execute-delete`, { method: 'POST' }),
+
+  // Course registered students & unenrollment
+  getCourseRegisteredStudents: (courseId) => request(`/workflow/courses/${courseId}/students`),
+  unenrollStudent: (enrollmentId) => request(`/workflow/enrollments/${enrollmentId}`, { method: 'DELETE' }),
+  getMySemesters: () => request('/my-semesters'),
 };

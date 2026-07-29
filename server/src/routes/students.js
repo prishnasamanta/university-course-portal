@@ -261,6 +261,23 @@ router.get('/students/:studentId', authRequired, requireRoles('admin', 'academic
 
 
 
+// GET /api/my-semesters — Returns only semesters in which the student has enrollments
+router.get('/my-semesters', authRequired, requireRoles('student'), (req, res) => {
+  const student = getStudentByUserId(req.user.id);
+  if (!student) return res.status(404).json({ error: 'Student profile not found' });
+
+  const sems = db.prepare(`
+    SELECT DISTINCT sem.id, sem.name, sem.year, sem.semester_number, sem.is_active, sem.exams_completed
+    FROM enrollments e
+    JOIN sections s ON s.id = e.section_id
+    JOIN semesters sem ON sem.id = s.semester_id
+    WHERE e.student_id = ? AND e.status != 'dropped'
+    ORDER BY sem.year DESC, sem.semester_number DESC
+  `).all(student.id);
+
+  res.json(sems);
+});
+
 // GET /api/my-results — Student views their enrolled course results & workflow status
 router.get('/my-results', authRequired, requireRoles('student'), (req, res) => {
   const student = getStudentByUserId(req.user.id);
@@ -399,6 +416,13 @@ router.get('/transcript', authRequired, requireRoles('student'), (req, res) => {
 
 
 router.post('/semesters', authRequired, requireRoles('admin', 'academic_staff'), (req, res) => {
+  const openSem = db.prepare('SELECT id, name FROM semesters WHERE registration_open = 1 LIMIT 1').get();
+  if (openSem) {
+    return res.status(400).json({
+      error: `Cannot create a new semester while registration for "${openSem.name}" is still open. Please close registration first.`
+    });
+  }
+
   const { name, year, semester_number, is_active, registration_open } = req.body;
   
   let semNum = semester_number;
