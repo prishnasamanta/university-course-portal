@@ -12,6 +12,7 @@ const schemaPath = path.join(__dirname, 'schema.sql');
 let dbInstance = null;
 let wrapperInstance = null;
 let initPromise = null;
+let pgSyncChain = Promise.resolve(); // Serializes PG writes to respect FK order
 
 function convertSqlForPostgres(sql) {
   let paramIndex = 1;
@@ -47,13 +48,16 @@ function syncToPostgres(sql, params = []) {
   
   try {
     const pgSql = convertSqlForPostgres(sql);
-    pool.query(pgSql, params)
-      .then((res) => {
-        console.log(`[PG Sync OK] ${res.rowCount} row(s) | ${pgSql.slice(0, 100)}`);
-      })
-      .catch((err) => {
-        console.warn(`[PG Sync FAIL] ${err.message} | ${pgSql.slice(0, 100)}`);
-      });
+    // Chain writes so FK dependencies are respected (e.g. users before students)
+    pgSyncChain = pgSyncChain.then(() =>
+      pool.query(pgSql, params)
+        .then((res) => {
+          console.log(`[PG Sync OK] ${res.rowCount} row(s) | ${pgSql.slice(0, 100)}`);
+        })
+        .catch((err) => {
+          console.warn(`[PG Sync FAIL] ${err.message} | ${pgSql.slice(0, 100)}`);
+        })
+    );
   } catch (e) {
     console.warn(`[PG Sync Error] ${e.message}`);
   }
@@ -77,50 +81,57 @@ function rowToObject(columns, values) {
 
 function seedSqlite(db) {
   try {
-    const P = 'pass1234';
-    const PROF = 'prof1234';
-    const S123 = 'student123';
+    const hash = (pw) => bcrypt.hashSync(pw, 10);
+    const P = hash('pass1234');
+    const PROF = hash('prof1234');
+    const S123 = hash('student123');
+    const ST123 = hash('staff123');
+    const HD123 = hash('head123');
+    const ADM = hash('admin123');
 
     db.exec(`
-      INSERT OR IGNORE INTO users (email, password, name, role) VALUES
-      ('alice@student.uni.edu', '${S123}', 'Alice Johnson', 'student'),
-      ('dr.smith@uni.edu', '${PROF}', 'Prof. John Smith', 'instructor'),
+      INSERT OR IGNORE INTO users (email, password_hash, password, name, role, department, employee_id, profile_completed) VALUES
+      ('alice@student.uni.edu', '${S123}', 'student123', 'Alice Johnson', 'student', NULL, NULL, 0),
+      ('dr.smith@uni.edu', '${PROF}', 'prof1234', 'Prof. John Smith', 'instructor', 'Computer Science', 'EMP001', 1),
+      ('staff@uni.edu', '${ST123}', 'staff123', 'Sarah Williams', 'academic_staff', NULL, NULL, 1),
+      ('head@uni.edu', '${HD123}', 'head123', 'Dr. Anita Sharma', 'dept_head', 'cs', NULL, 1),
+      ('admin@uni.edu', '${ADM}', 'admin123', 'System Admin', 'admin', NULL, NULL, 1),
       
-      ('ram.das@btech.uni.edu', '${P}', 'Ram Das', 'student'),
-      ('priya.verma@btech.uni.edu', '${P}', 'Priya Verma', 'student'),
-      ('amit.sharma@btech.uni.edu', '${P}', 'Amit Sharma', 'student'),
-      ('nisha.patel@btech.uni.edu', '${P}', 'Nisha Patel', 'student'),
-      ('rohan.gupta@btech.uni.edu', '${P}', 'Rohan Gupta', 'student'),
+      ('ram.das@btech.uni.edu', '${P}', 'pass1234', 'Ram Das', 'student', NULL, NULL, 0),
+      ('priya.verma@btech.uni.edu', '${P}', 'pass1234', 'Priya Verma', 'student', NULL, NULL, 0),
+      ('amit.sharma@btech.uni.edu', '${P}', 'pass1234', 'Amit Sharma', 'student', NULL, NULL, 0),
+      ('nisha.patel@btech.uni.edu', '${P}', 'pass1234', 'Nisha Patel', 'student', NULL, NULL, 0),
+      ('rohan.gupta@btech.uni.edu', '${P}', 'pass1234', 'Rohan Gupta', 'student', NULL, NULL, 0),
       
-      ('sneha.roy@msc.uni.edu', '${P}', 'Sneha Roy', 'student'),
-      ('arjun.nair@msc.uni.edu', '${P}', 'Arjun Nair', 'student'),
-      ('deepa.menon@msc.uni.edu', '${P}', 'Deepa Menon', 'student'),
-      ('vikram.singh@msc.uni.edu', '${P}', 'Vikram Singh', 'student'),
-      ('kavya.iyer@msc.uni.edu', '${P}', 'Kavya Iyer', 'student'),
+      ('sneha.roy@msc.uni.edu', '${P}', 'pass1234', 'Sneha Roy', 'student', NULL, NULL, 0),
+      ('arjun.nair@msc.uni.edu', '${P}', 'pass1234', 'Arjun Nair', 'student', NULL, NULL, 0),
+      ('deepa.menon@msc.uni.edu', '${P}', 'pass1234', 'Deepa Menon', 'student', NULL, NULL, 0),
+      ('vikram.singh@msc.uni.edu', '${P}', 'pass1234', 'Vikram Singh', 'student', NULL, NULL, 0),
+      ('kavya.iyer@msc.uni.edu', '${P}', 'pass1234', 'Kavya Iyer', 'student', NULL, NULL, 0),
       
-      ('ravi.kumar@mtech.uni.edu', '${P}', 'Ravi Kumar', 'student'),
-      ('ananya.das@mtech.uni.edu', '${P}', 'Ananya Das', 'student'),
-      ('suresh.rao@mtech.uni.edu', '${P}', 'Suresh Rao', 'student'),
-      ('leela.shah@mtech.uni.edu', '${P}', 'Leela Shah', 'student'),
-      ('mohan.bose@mtech.uni.edu', '${P}', 'Mohan Bose', 'student'),
+      ('ravi.kumar@mtech.uni.edu', '${P}', 'pass1234', 'Ravi Kumar', 'student', NULL, NULL, 0),
+      ('ananya.das@mtech.uni.edu', '${P}', 'pass1234', 'Ananya Das', 'student', NULL, NULL, 0),
+      ('suresh.rao@mtech.uni.edu', '${P}', 'pass1234', 'Suresh Rao', 'student', NULL, NULL, 0),
+      ('leela.shah@mtech.uni.edu', '${P}', 'pass1234', 'Leela Shah', 'student', NULL, NULL, 0),
+      ('mohan.bose@mtech.uni.edu', '${P}', 'pass1234', 'Mohan Bose', 'student', NULL, NULL, 0),
       
-      ('tanvi.joshi@btech.uni.edu', '${P}', 'Tanvi Joshi', 'student'),
-      ('harsh.gupta@btech.uni.edu', '${P}', 'Harsh Gupta', 'student'),
-      ('simran.kaur@btech.uni.edu', '${P}', 'Simran Kaur', 'student'),
-      ('dev.mehta@btech.uni.edu', '${P}', 'Dev Mehta', 'student'),
-      ('aisha.khan@btech.uni.edu', '${P}', 'Aisha Khan', 'student'),
+      ('tanvi.joshi@btech.uni.edu', '${P}', 'pass1234', 'Tanvi Joshi', 'student', NULL, NULL, 0),
+      ('harsh.gupta@btech.uni.edu', '${P}', 'pass1234', 'Harsh Gupta', 'student', NULL, NULL, 0),
+      ('simran.kaur@btech.uni.edu', '${P}', 'pass1234', 'Simran Kaur', 'student', NULL, NULL, 0),
+      ('dev.mehta@btech.uni.edu', '${P}', 'pass1234', 'Dev Mehta', 'student', NULL, NULL, 0),
+      ('aisha.khan@btech.uni.edu', '${P}', 'pass1234', 'Aisha Khan', 'student', NULL, NULL, 0),
       
-      ('neha.sharma@msc.uni.edu', '${P}', 'Neha Sharma', 'student'),
-      ('arun.pillai@msc.uni.edu', '${P}', 'Arun Pillai', 'student'),
-      ('divya.bhat@msc.uni.edu', '${P}', 'Divya Bhat', 'student'),
-      ('kiran.reddy@msc.uni.edu', '${P}', 'Kiran Reddy', 'student'),
-      ('sanjay.mehta@msc.uni.edu', '${P}', 'Sanjay Mehta', 'student'),
+      ('neha.sharma@msc.uni.edu', '${P}', 'pass1234', 'Neha Sharma', 'student', NULL, NULL, 0),
+      ('arun.pillai@msc.uni.edu', '${P}', 'pass1234', 'Arun Pillai', 'student', NULL, NULL, 0),
+      ('divya.bhat@msc.uni.edu', '${P}', 'pass1234', 'Divya Bhat', 'student', NULL, NULL, 0),
+      ('kiran.reddy@msc.uni.edu', '${P}', 'pass1234', 'Kiran Reddy', 'student', NULL, NULL, 0),
+      ('sanjay.mehta@msc.uni.edu', '${P}', 'pass1234', 'Sanjay Mehta', 'student', NULL, NULL, 0),
       
-      ('anita.roy@uni.edu', '${PROF}', 'Prof. Anita Roy', 'instructor'),
-      ('ramesh.iyer@uni.edu', '${PROF}', 'Prof. Ramesh Iyer', 'instructor'),
-      ('sunita.bose@uni.edu', '${PROF}', 'Prof. Sunita Bose', 'instructor'),
-      ('girish.nair@uni.edu', '${PROF}', 'Prof. Girish Nair', 'instructor'),
-      ('kavita.sharma@uni.edu', '${PROF}', 'Prof. Kavita Sharma', 'instructor');
+      ('anita.roy@uni.edu', '${PROF}', 'prof1234', 'Prof. Anita Roy', 'instructor', 'Computer Science', 'EMP002', 1),
+      ('ramesh.iyer@uni.edu', '${PROF}', 'prof1234', 'Prof. Ramesh Iyer', 'instructor', 'Computer Science', 'EMP003', 1),
+      ('sunita.bose@uni.edu', '${PROF}', 'prof1234', 'Prof. Sunita Bose', 'instructor', 'Economics', 'EMP004', 1),
+      ('girish.nair@uni.edu', '${PROF}', 'prof1234', 'Prof. Girish Nair', 'instructor', 'Statistics', 'EMP005', 1),
+      ('kavita.sharma@uni.edu', '${PROF}', 'prof1234', 'Prof. Kavita Sharma', 'instructor', 'Computer Science', 'EMP006', 1);
     `);
 
     db.exec(`
@@ -143,6 +154,7 @@ function seedSqlite(db) {
       (7, 'Semester 7', 2025, 0, 0, 0),
       (8, 'Semester 8', 2025, 0, 0, 0);
     `);
+
     db.exec(`
       INSERT OR IGNORE INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id) VALUES 
       ((SELECT id FROM users WHERE email='alice@student.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2022, 'CS22001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
@@ -151,25 +163,21 @@ function seedSqlite(db) {
       ((SELECT id FROM users WHERE email='amit.sharma@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23003', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='nisha.patel@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23004', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='rohan.gupta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23005', 1, 'Class XII', 'B', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
-      
       ((SELECT id FROM users WHERE email='sneha.roy@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='arjun.nair@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23002', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='deepa.menon@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23003', 1, 'B.Sc', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='vikram.singh@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23004', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='kavya.iyer@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23005', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
-      
       ((SELECT id FROM users WHERE email='ravi.kumar@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23001', 1, 'B.Tech', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='ananya.das@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23002', 1, 'B.Tech', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='suresh.rao@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23003', 1, 'B.Tech', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='leela.shah@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23004', 1, 'B.Tech', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='mohan.bose@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23005', 1, 'B.Tech', 'B', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
-      
       ((SELECT id FROM users WHERE email='tanvi.joshi@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23001', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='harsh.gupta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23002', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='simran.kaur@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23003', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='dev.mehta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23004', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='aisha.khan@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23005', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
-      
       ((SELECT id FROM users WHERE email='neha.sharma@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='arun.pillai@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23002', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
       ((SELECT id FROM users WHERE email='divya.bhat@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23003', 1, 'B.Sc', 'B+', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025)),
@@ -177,15 +185,6 @@ function seedSqlite(db) {
       ((SELECT id FROM users WHERE email='sanjay.mehta@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23005', 1, 'B.Sc', 'B', (SELECT id FROM semesters WHERE semester_number=1 AND year=2025));
     `);
 
-    db.exec(`
-      INSERT OR IGNORE INTO instructors (user_id, department, employee_id, profile_completed) VALUES
-      ((SELECT id FROM users WHERE email='dr.smith@uni.edu'), 'Computer Science', 'EMP001', 1),
-      ((SELECT id FROM users WHERE email='anita.roy@uni.edu'), 'Computer Science', 'EMP002', 1),
-      ((SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'), 'Computer Science', 'EMP003', 1),
-      ((SELECT id FROM users WHERE email='sunita.bose@uni.edu'), 'Economics', 'EMP004', 1),
-      ((SELECT id FROM users WHERE email='girish.nair@uni.edu'), 'Statistics', 'EMP005', 1),
-      ((SELECT id FROM users WHERE email='kavita.sharma@uni.edu'), 'Computer Science', 'EMP006', 1);
-    `);
     
     db.exec(`
       INSERT OR IGNORE INTO courses (code, title, credits, description, department, degree_level, is_published) VALUES
@@ -208,21 +207,21 @@ function seedSqlite(db) {
 
     db.exec(`
       INSERT OR IGNORE INTO sections (course_id, semester_id, section_code, capacity, exam_requested, exam_reg_open, instructor_id) VALUES
-      ((SELECT id FROM courses WHERE code='CS101'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS102'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS103'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='dr.smith@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS201'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS202'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS203'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='anita.roy@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS301'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS302'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='CS303'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='ramesh.iyer@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='ECO101'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='ECO102'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='ECO103'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='sunita.bose@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='STAT201'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='STAT202'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu'))),
-      ((SELECT id FROM courses WHERE code='STAT203'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM instructors WHERE user_id=(SELECT id FROM users WHERE email='girish.nair@uni.edu')));
+      ((SELECT id FROM courses WHERE code='CS101'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='dr.smith@uni.edu')),
+      ((SELECT id FROM courses WHERE code='CS102'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='dr.smith@uni.edu')),
+      ((SELECT id FROM courses WHERE code='CS103'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='dr.smith@uni.edu')),
+      ((SELECT id FROM courses WHERE code='CS201'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='anita.roy@uni.edu')),
+      ((SELECT id FROM courses WHERE code='CS202'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='anita.roy@uni.edu')),
+      ((SELECT id FROM courses WHERE code='CS203'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='anita.roy@uni.edu')),
+      ((SELECT id FROM courses WHERE code='CS301'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='ramesh.iyer@uni.edu')),
+      ((SELECT id FROM courses WHERE code='CS302'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='ramesh.iyer@uni.edu')),
+      ((SELECT id FROM courses WHERE code='CS303'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='ramesh.iyer@uni.edu')),
+      ((SELECT id FROM courses WHERE code='ECO101'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='sunita.bose@uni.edu')),
+      ((SELECT id FROM courses WHERE code='ECO102'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='sunita.bose@uni.edu')),
+      ((SELECT id FROM courses WHERE code='ECO103'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='sunita.bose@uni.edu')),
+      ((SELECT id FROM courses WHERE code='STAT201'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='girish.nair@uni.edu')),
+      ((SELECT id FROM courses WHERE code='STAT202'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='girish.nair@uni.edu')),
+      ((SELECT id FROM courses WHERE code='STAT203'), (SELECT id FROM semesters WHERE semester_number=1 AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='girish.nair@uni.edu'));
     `);
 
     db.exec(`

@@ -11,7 +11,7 @@ const router = Router();
 router.get('/sections/pending', authRequired, requireRoles('academic_staff', 'admin'), (req, res) => {
   const sections = db.prepare(`
     SELECT DISTINCT s.id, c.code AS course_code, c.title AS course_title, s.section_code,
-           sem.name AS semester_name, sem.year, u.name AS instructor_name,
+           sem.name AS semester_name, sem.year, u_instr.name AS instructor_name,
            (SELECT COUNT(*) FROM enrollments e
             JOIN result_workflow rw ON rw.enrollment_id = e.id
             WHERE e.section_id = s.id AND rw.status = 'checked_pending_verification') AS pending_forward,
@@ -21,8 +21,7 @@ router.get('/sections/pending', authRequired, requireRoles('academic_staff', 'ad
     FROM sections s
     JOIN courses c ON c.id = s.course_id
     JOIN semesters sem ON sem.id = s.semester_id
-    LEFT JOIN instructors i ON i.id = s.instructor_id
-    LEFT JOIN users u ON u.id = i.user_id
+    LEFT JOIN users u_instr ON u_instr.id = s.instructor_id
     WHERE s.instructor_id IS NOT NULL
     ORDER BY sem.year DESC, c.code
   `).all();
@@ -73,7 +72,7 @@ router.get('/dept-head/courses', authRequired, requireRoles('dept_head', 'admin'
   const courses = db.prepare(`
     SELECT DISTINCT c.id, c.code, c.title, c.department, c.degree_level, c.credits,
            sem.id AS semester_id, sem.name AS semester_name, sem.year,
-           s.id AS section_id, s.section_code, u.name AS instructor_name,
+           s.id AS section_id, s.section_code, u_instr.name AS instructor_name,
            (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.id AND e.status IN ('registered','completed')) AS student_count,
            (SELECT COUNT(*) FROM enrollments e
             JOIN result_workflow rw ON rw.enrollment_id = e.id
@@ -81,8 +80,7 @@ router.get('/dept-head/courses', authRequired, requireRoles('dept_head', 'admin'
     FROM courses c
     JOIN sections s ON s.course_id = c.id
     JOIN semesters sem ON sem.id = s.semester_id
-    LEFT JOIN instructors i ON i.id = s.instructor_id
-    LEFT JOIN users u ON u.id = i.user_id
+    LEFT JOIN users u_instr ON u_instr.id = s.instructor_id
     WHERE s.instructor_id IS NOT NULL
     ORDER BY sem.year DESC, c.code
   `).all();
@@ -111,14 +109,13 @@ router.get('/exam-requests', authRequired, requireRoles('academic_staff', 'admin
     SELECT s.id AS section_id, s.section_code, s.exam_requested, s.exam_reg_open,
            c.code AS course_code, c.title AS course_title, c.degree_level,
            sem.name AS semester_name, sem.year,
-           u.name AS instructor_name,
+           u_instr.name AS instructor_name,
            (SELECT COUNT(*) FROM enrollments e WHERE e.section_id = s.id AND e.status = 'registered') AS enrolled_count,
            (SELECT COUNT(*) FROM exam_registrations er JOIN enrollments e ON e.id = er.enrollment_id WHERE e.section_id = s.id) AS exam_registered_count
     FROM sections s
     JOIN courses c ON c.id = s.course_id
     JOIN semesters sem ON sem.id = s.semester_id
-    LEFT JOIN instructors i ON i.id = s.instructor_id
-    LEFT JOIN users u ON u.id = i.user_id
+    LEFT JOIN users u_instr ON u_instr.id = s.instructor_id
     WHERE s.exam_requested = 1 OR s.exam_reg_open = 1
     ORDER BY sem.year DESC, c.code
   `).all();
@@ -157,11 +154,10 @@ router.get('/users', authRequired, requireRoles('academic_staff', 'admin'), (req
   const users = db.prepare(`
     SELECT u.id, u.name, u.email, u.role, u.created_at,
            st.roll_number, st.id AS student_id, p.code AS program_code,
-           ins.employee_id, ins.department
+           u.employee_id, u.department
     FROM users u
     LEFT JOIN students st ON st.user_id = u.id
     LEFT JOIN programs p ON p.id = st.program_id
-    LEFT JOIN instructors ins ON ins.user_id = u.id
     ORDER BY u.role, u.name
   `).all();
   res.json(users);

@@ -3,11 +3,14 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
-  password TEXT NOT NULL,
-  password_hash TEXT,
+  password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('student', 'instructor', 'academic_staff', 'dept_head', 'admin')),
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  password TEXT,
+  department TEXT,
+  employee_id TEXT,
+  profile_completed INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS programs (
@@ -33,6 +36,7 @@ CREATE TABLE IF NOT EXISTS students (
   user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   email TEXT,
   name TEXT,
+  password_hash TEXT,
   password TEXT,
   program_id INTEGER NOT NULL REFERENCES programs(id),
   batch_year INTEGER NOT NULL,
@@ -42,18 +46,6 @@ CREATE TABLE IF NOT EXISTS students (
   previous_grade TEXT,
   current_semester_id INTEGER REFERENCES semesters(id)
 );
-
-CREATE TABLE IF NOT EXISTS instructors (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  email TEXT,
-  name TEXT,
-  password TEXT,
-  department TEXT NOT NULL,
-  employee_id TEXT NOT NULL UNIQUE,
-  profile_completed INTEGER NOT NULL DEFAULT 0
-);
-
 
 
 CREATE TABLE IF NOT EXISTS courses (
@@ -82,7 +74,7 @@ CREATE TABLE IF NOT EXISTS sections (
   course_id INTEGER NOT NULL REFERENCES courses(id),
   semester_id INTEGER NOT NULL REFERENCES semesters(id),
   section_code TEXT NOT NULL,
-  instructor_id INTEGER REFERENCES instructors(id),
+  instructor_id INTEGER REFERENCES users(id),
   capacity INTEGER NOT NULL CHECK (capacity > 0),
   room TEXT,
   exam_requested INTEGER NOT NULL DEFAULT 0,
@@ -110,7 +102,7 @@ CREATE TABLE IF NOT EXISTS enrollments (
 
 CREATE TABLE IF NOT EXISTS instructor_teaching_preferences (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  instructor_id INTEGER NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
+  instructor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   semester_id INTEGER REFERENCES semesters(id),
   day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
@@ -320,14 +312,6 @@ BEGIN
   VALUES (NEW.id, (SELECT id FROM programs LIMIT 1), 2025, 'STU' || NEW.id, 0);
 END;
 
--- Trigger: Automatic Instructor Profile creation on users INSERT (SQL/TablePlus/Website)
-CREATE TRIGGER IF NOT EXISTS trg_auto_create_instructor_profile
-AFTER INSERT ON users
-FOR EACH ROW
-WHEN NEW.role = 'instructor'
-BEGIN
-  INSERT OR IGNORE INTO instructors (user_id, department, employee_id, profile_completed)
-  VALUES (NEW.id, 'cs', 'EMP' || NEW.id, 0);
-END;
+
 
 

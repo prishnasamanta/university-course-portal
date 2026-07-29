@@ -34,7 +34,7 @@ router.post('/profile', authRequired, requireRoles('instructor'), (req, res) => 
 
 
 
-  db.prepare('DELETE FROM instructor_teaching_preferences WHERE instructor_id = ?').run(instructor.id);
+  db.prepare('DELETE FROM instructor_teaching_preferences WHERE instructor_id = ?').run(req.user.id);
 
 
 
@@ -52,7 +52,7 @@ router.post('/profile', authRequired, requireRoles('instructor'), (req, res) => 
 
     insert.run(
 
-      instructor.id, pref.course_id, pref.semester_id || null,
+      req.user.id, pref.course_id, pref.semester_id || null,
 
       pref.day_of_week, pref.start_time, pref.end_time
 
@@ -62,9 +62,9 @@ router.post('/profile', authRequired, requireRoles('instructor'), (req, res) => 
 
 
 
-  db.prepare('UPDATE instructors SET profile_completed = 1 WHERE user_id = ?').run(req.user.id);
+  db.prepare('UPDATE users SET profile_completed = 1 WHERE id = ?').run(req.user.id);
 
-  const sync = syncSectionsFromPreferences(instructor.id, preferences[0]?.semester_id || null);
+  const sync = syncSectionsFromPreferences(req.user.id, preferences[0]?.semester_id || null);
 
   res.json({ ok: true, sections: sync });
 
@@ -96,7 +96,7 @@ router.get('/my-preferences', authRequired, requireRoles('instructor'), (req, re
 
     JOIN courses c ON c.id = tp.course_id WHERE tp.instructor_id = ?
 
-  `).all(instructor.id);
+  `).all(req.user.id);
 
   res.json(prefs.map(p => ({ ...p, day_name: DAY_NAMES[p.day_of_week] })));
 
@@ -117,7 +117,7 @@ router.get('/my-sections', authRequired, requireRoles('instructor'), (req, res) 
     JOIN semesters sem ON sem.id = s.semester_id
     WHERE s.instructor_id = ?
     ORDER BY sem.year DESC, c.code
-  `).all(instructor.id);
+  `).all(req.user.id);
 
   res.json(sections.map(sec => {
     const slots = db.prepare('SELECT * FROM section_schedule_slots WHERE section_id = ? ORDER BY day_of_week').all(sec.id);
@@ -150,7 +150,7 @@ router.get('/results/sections', authRequired, requireRoles('instructor'), (req, 
 
     ORDER BY sem.year DESC, c.code
 
-  `).all(instructor.id));
+  `).all(req.user.id));
 
 });
 
@@ -214,7 +214,7 @@ router.post('/results', authRequired, requireRoles('instructor'), (req, res) => 
 
   const instructor = getInstructorByUserId(req.user.id);
 
-  if (!enrollment || enrollment.instructor_id !== instructor.id) {
+  if (!enrollment || enrollment.instructor_id !== req.user.id) {
 
     return res.status(403).json({ error: 'Not your section' });
 
@@ -466,7 +466,7 @@ router.post('/revision-requests/:id/review', authRequired, requireRoles('dept_he
 router.post('/sections/:sectionId/request-exam', authRequired, requireRoles('instructor'), async (req, res) => {
   const instructor = getInstructorByUserId(req.user.id);
   const dbInst = await getDb();
-  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, instructor.id);
+  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, req.user.id);
   if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
   
   dbInst.prepare('UPDATE sections SET exam_requested = 1 WHERE id = ?').run(section.id);
@@ -477,7 +477,7 @@ router.post('/sections/:sectionId/request-exam', authRequired, requireRoles('ins
 router.post('/sections/:sectionId/cancel-exam-request', authRequired, requireRoles('instructor'), async (req, res) => {
   const instructor = getInstructorByUserId(req.user.id);
   const dbInst = await getDb();
-  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, instructor.id);
+  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, req.user.id);
   if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
   
   dbInst.prepare('UPDATE sections SET exam_requested = 0 WHERE id = ?').run(section.id);
@@ -488,7 +488,7 @@ router.post('/sections/:sectionId/cancel-exam-request', authRequired, requireRol
 router.post('/sections/:sectionId/timetable', authRequired, requireRoles('instructor'), async (req, res) => {
   const instructor = getInstructorByUserId(req.user.id);
   const dbInst = await getDb();
-  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, instructor.id);
+  const section = dbInst.prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?').get(req.params.sectionId, req.user.id);
   if (!section) return res.status(404).json({ error: 'Section not found or not yours' });
 
   const { day_of_week, start_time, end_time, room, slots } = req.body;

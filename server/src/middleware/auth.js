@@ -50,16 +50,5 @@ export function getStudentByUserId(userId) {
 }
 
 export function getInstructorByUserId(userId) {
-  let instructor = db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(userId);
-  if (!instructor && userId) {
-    try {
-      const empId = `EMP${Date.now().toString().slice(-6)}`;
-      db.prepare(`
-        INSERT INTO instructors (user_id, department, employee_id, profile_completed)
-        VALUES (?, ?, ?, 0)
-      `).run(userId, 'Computer Science', empId);
-      instructor = db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(userId);
-    } catch (e) { /* ignore */ }
-  }
-  return instructor;
+  return db.prepare('SELECT * FROM users WHERE id = ? AND role = ?').get(userId, 'instructor');
 }

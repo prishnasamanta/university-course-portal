@@ -38,10 +38,9 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Allow plain password match (or fallback to existing hash for backward compatibility during transition)
-    const passwordValid = (user.password === password) ||
-                          (user.password_hash && bcrypt.compareSync(password, user.password_hash)) ||
-                          (user.password_hash === password);
+    const passwordValid = (user.password_hash && bcrypt.compareSync(password, user.password_hash)) ||
+                          (user.password_hash === password) ||
+                          (user.password === password);
 
     if (!passwordValid) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -78,11 +77,12 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
+    const password_hash = bcrypt.hashSync(password, 10);
     const db = await getDb();
 
-    // Insert into PostgreSQL/SQLite database to obtain INTEGER ID and store user profile
-    const result = db.prepare('INSERT INTO users (name, email, role, password) VALUES (?, ?, ?, ?)')
-      .run(name, email, role, password);
+    // Insert user with plain password + hash
+    const result = db.prepare('INSERT INTO users (name, email, role, password_hash, password, department, employee_id, profile_completed) VALUES (?, ?, ?, ?, ?, ?, ?, 0)')
+      .run(name, email, role, password_hash, password, null, null);
     const numericId = result.lastInsertRowid;
 
     if (role === 'student') {
@@ -94,10 +94,9 @@ router.post('/register', async (req, res) => {
       `).run(numericId, email, name, password, defaultProgram, new Date().getFullYear(), rollNo);
     } else if (role === 'instructor') {
       const empId = `EMP${numericId}${Math.floor(Math.random() * 1000)}`;
-      db.prepare(`
-        INSERT OR IGNORE INTO instructors (user_id, email, name, password, department, employee_id, profile_completed)
-        VALUES (?, ?, ?, ?, ?, ?, 0)
-      `).run(numericId, email, name, password, 'Computer Science', empId);
+      // Store instructor info directly in users table
+      db.prepare('UPDATE users SET department = ?, employee_id = ? WHERE id = ?')
+        .run('Computer Science', empId, numericId);
     }
 
     const newUser = {
@@ -152,18 +151,20 @@ router.get('/me', authRequired, async (req, res) => {
         profile = { id: user.id, user_id: user.id, profile_completed: 0 };
       }
     } else if (user.role === 'instructor') {
-      try {
-        profile = db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(user.id);
-        if (!profile) {
-          const empId = `EMP${user.id}${Math.floor(Math.random() * 10000)}`;
-          db.prepare(`
-            INSERT INTO instructors (user_id, department, employee_id, profile_completed)
-            VALUES (?, ?, ?, 0)
-          `).run(user.id, 'Computer Science', empId);
-          profile = db.prepare('SELECT * FROM instructors WHERE user_id = ?').get(user.id);
-        }
-      } catch (err) {
-        profile = { id: user.id, user_id: user.id, department: '', profile_completed: 0 };
+      // Instructor profile is stored directly in users table
+      profile = {
+        id: user.id,
+        user_id: user.id,
+        department: user.department || '',
+        employee_id: user.employee_id || '',
+        profile_completed: user.profile_completed || 0
+      };
+      // Get full user info with department
+      const fullUser = db.prepare('SELECT department, employee_id, profile_completed FROM users WHERE id = ?').get(user.id);
+      if (fullUser) {
+        profile.department = fullUser.department || '';
+        profile.employee_id = fullUser.employee_id || '';
+        profile.profile_completed = fullUser.profile_completed || 0;
       }
     }
 

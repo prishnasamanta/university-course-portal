@@ -39,10 +39,13 @@ export async function initPostgres() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        password_hash VARCHAR(255),
+        password_hash VARCHAR(255) NOT NULL,
+        password VARCHAR(255),
         name VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL,
+        department VARCHAR(100),
+        employee_id VARCHAR(100),
+        profile_completed INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -69,6 +72,7 @@ export async function initPostgres() {
         user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
         email VARCHAR(255),
         name VARCHAR(255),
+        password_hash VARCHAR(255),
         password VARCHAR(255),
         program_id INTEGER REFERENCES programs(id),
         batch_year INTEGER NOT NULL,
@@ -79,16 +83,7 @@ export async function initPostgres() {
         current_semester_id INTEGER REFERENCES semesters(id)
       );
 
-      CREATE TABLE IF NOT EXISTS instructors (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-        email VARCHAR(255),
-        name VARCHAR(255),
-        password VARCHAR(255),
-        department VARCHAR(100) NOT NULL,
-        employee_id VARCHAR(100) UNIQUE NOT NULL,
-        profile_completed INTEGER DEFAULT 0
-      );
+
 
       CREATE TABLE IF NOT EXISTS courses (
         id SERIAL PRIMARY KEY,
@@ -109,7 +104,7 @@ export async function initPostgres() {
         course_id INTEGER REFERENCES courses(id),
         semester_id INTEGER REFERENCES semesters(id),
         section_code VARCHAR(50) NOT NULL,
-        instructor_id INTEGER REFERENCES instructors(id),
+        instructor_id INTEGER REFERENCES users(id),
         capacity INTEGER DEFAULT 60,
         room VARCHAR(100),
         exam_requested INTEGER DEFAULT 0,
@@ -296,84 +291,76 @@ export async function initPostgres() {
       GROUP BY student_id;
     `);
 
-    // Add email/name/password_hash columns to role tables if they don't exist yet
-    // Add password column to users if it doesn't exist, and backfill from password_hash
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password VARCHAR(255)`).catch(() => {});
-    await client.query(`UPDATE users SET password = password_hash WHERE password IS NULL AND password_hash IS NOT NULL`).catch(() => {});
+    // Add new columns to existing users table if they don't exist
+    for (const col of ['password', 'department', 'employee_id']) {
+      await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col} VARCHAR(255)`).catch(() => {});
+    }
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_completed INTEGER DEFAULT 0`).catch(() => {});
 
-    // Drop unused tables
-    const tablesToDrop = ['academic_staff', 'dept_heads', 'admins'];
-    for (const table of tablesToDrop) {
+    // Drop removed tables (safe - no FK references)
+    for (const table of ['admins', 'dept_heads', 'academic_staff', 'instructors']) {
       await client.query(`DROP TABLE IF EXISTS ${table} CASCADE`).catch(() => {});
     }
 
-    // Add email/name/password columns to role tables if they don't exist yet, and drop password_hash
-    const roleTables = ['students', 'instructors'];
-    for (const table of roleTables) {
-      for (const col of ['email', 'name', 'password']) {
-        await client.query(`
-          ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} VARCHAR(255)
-        `).catch(() => {});
-      }
-      // Drop password_hash to match SQLite schema
-      await client.query(`ALTER TABLE ${table} DROP COLUMN IF EXISTS password_hash`).catch(() => {});
-    }
+    // Fix sections.instructor_id FK to reference users instead of instructors
+    await client.query(`
+      ALTER TABLE sections DROP CONSTRAINT IF EXISTS sections_instructor_id_fkey
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE sections ADD CONSTRAINT sections_instructor_id_fkey FOREIGN KEY (instructor_id) REFERENCES users(id)
+    `).catch(() => {});
 
-    // Backfill email/name/password in role tables from users table
-    for (const table of roleTables) {
-      await client.query(`
-        UPDATE ${table} SET 
-          email = u.email, 
-          name = u.name, 
-          password = u.password 
-        FROM users u 
-        WHERE ${table}.user_id = u.id AND (${table}.email IS NULL OR ${table}.password IS NULL)
-      `).catch(() => {});
-    }
+    // Fix instructor_teaching_preferences FK
+    await client.query(`
+      ALTER TABLE instructor_teaching_preferences DROP CONSTRAINT IF EXISTS instructor_teaching_preferences_instructor_id_fkey
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE instructor_teaching_preferences ADD CONSTRAINT instructor_teaching_preferences_instructor_id_fkey FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE CASCADE
+    `).catch(() => {});
 
     // Check if seeded
     const countRes = await client.query('SELECT COUNT(*) FROM users');
     if (parseInt(countRes.rows[0].count, 10) === 0) {
       console.log('[PostgreSQL] Seeding default database users and courses...');
-      const P = 'pass1234';
-      const PROF = 'prof1234';
-      const S123 = 'student123';
+      const hash = (pw) => bcrypt.hashSync(pw, 10);
 
       await client.query(`
-        INSERT INTO users (email, password, name, role) VALUES
-        ('alice@student.uni.edu', '${S123}', 'Alice Johnson', 'student'),
-        ('dr.smith@uni.edu', '${PROF}', 'Prof. John Smith', 'instructor'),
-        ('ram.das@btech.uni.edu', '${P}', 'Ram Das', 'student'),
-        ('priya.verma@btech.uni.edu', '${P}', 'Priya Verma', 'student'),
-        ('amit.sharma@btech.uni.edu', '${P}', 'Amit Sharma', 'student'),
-        ('nisha.patel@btech.uni.edu', '${P}', 'Nisha Patel', 'student'),
-        ('rohan.gupta@btech.uni.edu', '${P}', 'Rohan Gupta', 'student'),
-        ('sneha.roy@msc.uni.edu', '${P}', 'Sneha Roy', 'student'),
-        ('arjun.nair@msc.uni.edu', '${P}', 'Arjun Nair', 'student'),
-        ('deepa.menon@msc.uni.edu', '${P}', 'Deepa Menon', 'student'),
-        ('vikram.singh@msc.uni.edu', '${P}', 'Vikram Singh', 'student'),
-        ('kavya.iyer@msc.uni.edu', '${P}', 'Kavya Iyer', 'student'),
-        ('ravi.kumar@mtech.uni.edu', '${P}', 'Ravi Kumar', 'student'),
-        ('ananya.das@mtech.uni.edu', '${P}', 'Ananya Das', 'student'),
-        ('suresh.rao@mtech.uni.edu', '${P}', 'Suresh Rao', 'student'),
-        ('leela.shah@mtech.uni.edu', '${P}', 'Leela Shah', 'student'),
-        ('mohan.bose@mtech.uni.edu', '${P}', 'Mohan Bose', 'student'),
-        ('tanvi.joshi@btech.uni.edu', '${P}', 'Tanvi Joshi', 'student'),
-        ('harsh.gupta@btech.uni.edu', '${P}', 'Harsh Gupta', 'student'),
-        ('simran.kaur@btech.uni.edu', '${P}', 'Simran Kaur', 'student'),
-        ('dev.mehta@btech.uni.edu', '${P}', 'Dev Mehta', 'student'),
-        ('aisha.khan@btech.uni.edu', '${P}', 'Aisha Khan', 'student'),
-        ('neha.sharma@msc.uni.edu', '${P}', 'Neha Sharma', 'student'),
-        ('arun.pillai@msc.uni.edu', '${P}', 'Arun Pillai', 'student'),
-        ('divya.bhat@msc.uni.edu', '${P}', 'Divya Bhat', 'student'),
-        ('kiran.reddy@msc.uni.edu', '${P}', 'Kiran Reddy', 'student'),
-        ('sanjay.mehta@msc.uni.edu', '${P}', 'Sanjay Mehta', 'student'),
-        ('anita.roy@uni.edu', '${PROF}', 'Prof. Anita Roy', 'instructor'),
-        ('ramesh.iyer@uni.edu', '${PROF}', 'Prof. Ramesh Iyer', 'instructor'),
-        ('sunita.bose@uni.edu', '${PROF}', 'Prof. Sunita Bose', 'instructor'),
-        ('girish.nair@uni.edu', '${PROF}', 'Prof. Girish Nair', 'instructor'),
-        ('kavita.sharma@uni.edu', '${PROF}', 'Prof. Kavita Sharma', 'instructor');
-
+        INSERT INTO users (email, password_hash, password, name, role, department, employee_id, profile_completed) VALUES
+        ('alice@student.uni.edu', '${hash('student123')}', 'student123', 'Alice Johnson', 'student', NULL, NULL, 0),
+        ('dr.smith@uni.edu', '${hash('prof1234')}', 'prof1234', 'Prof. John Smith', 'instructor', 'Computer Science', 'EMP001', 1),
+        ('staff@uni.edu', '${hash('staff123')}', 'staff123', 'Sarah Williams', 'academic_staff', NULL, NULL, 1),
+        ('head@uni.edu', '${hash('head123')}', 'head123', 'Dr. Anita Sharma', 'dept_head', 'cs', NULL, 1),
+        ('admin@uni.edu', '${hash('admin123')}', 'admin123', 'System Admin', 'admin', NULL, NULL, 1),
+        ('ram.das@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Ram Das', 'student', NULL, NULL, 0),
+        ('priya.verma@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Priya Verma', 'student', NULL, NULL, 0),
+        ('amit.sharma@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Amit Sharma', 'student', NULL, NULL, 0),
+        ('nisha.patel@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Nisha Patel', 'student', NULL, NULL, 0),
+        ('rohan.gupta@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Rohan Gupta', 'student', NULL, NULL, 0),
+        ('sneha.roy@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Sneha Roy', 'student', NULL, NULL, 0),
+        ('arjun.nair@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Arjun Nair', 'student', NULL, NULL, 0),
+        ('deepa.menon@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Deepa Menon', 'student', NULL, NULL, 0),
+        ('vikram.singh@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Vikram Singh', 'student', NULL, NULL, 0),
+        ('kavya.iyer@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Kavya Iyer', 'student', NULL, NULL, 0),
+        ('ravi.kumar@mtech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Ravi Kumar', 'student', NULL, NULL, 0),
+        ('ananya.das@mtech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Ananya Das', 'student', NULL, NULL, 0),
+        ('suresh.rao@mtech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Suresh Rao', 'student', NULL, NULL, 0),
+        ('leela.shah@mtech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Leela Shah', 'student', NULL, NULL, 0),
+        ('mohan.bose@mtech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Mohan Bose', 'student', NULL, NULL, 0),
+        ('tanvi.joshi@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Tanvi Joshi', 'student', NULL, NULL, 0),
+        ('harsh.gupta@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Harsh Gupta', 'student', NULL, NULL, 0),
+        ('simran.kaur@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Simran Kaur', 'student', NULL, NULL, 0),
+        ('dev.mehta@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Dev Mehta', 'student', NULL, NULL, 0),
+        ('aisha.khan@btech.uni.edu', '${hash('pass1234')}', 'pass1234', 'Aisha Khan', 'student', NULL, NULL, 0),
+        ('neha.sharma@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Neha Sharma', 'student', NULL, NULL, 0),
+        ('arun.pillai@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Arun Pillai', 'student', NULL, NULL, 0),
+        ('divya.bhat@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Divya Bhat', 'student', NULL, NULL, 0),
+        ('kiran.reddy@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Kiran Reddy', 'student', NULL, NULL, 0),
+        ('sanjay.mehta@msc.uni.edu', '${hash('pass1234')}', 'pass1234', 'Sanjay Mehta', 'student', NULL, NULL, 0),
+        ('anita.roy@uni.edu', '${hash('prof1234')}', 'prof1234', 'Prof. Anita Roy', 'instructor', 'Computer Science', 'EMP002', 1),
+        ('ramesh.iyer@uni.edu', '${hash('prof1234')}', 'prof1234', 'Prof. Ramesh Iyer', 'instructor', 'Computer Science', 'EMP003', 1),
+        ('sunita.bose@uni.edu', '${hash('prof1234')}', 'prof1234', 'Prof. Sunita Bose', 'instructor', 'Economics', 'EMP004', 1),
+        ('girish.nair@uni.edu', '${hash('prof1234')}', 'prof1234', 'Prof. Girish Nair', 'instructor', 'Statistics', 'EMP005', 1),
+        ('kavita.sharma@uni.edu', '${hash('prof1234')}', 'prof1234', 'Prof. Kavita Sharma', 'instructor', 'Computer Science', 'EMP006', 1);
 
         INSERT INTO programs (code, name, department) VALUES 
         ('BTECH-CS', 'B.Tech Computer Science', 'cs'),
@@ -407,7 +394,6 @@ export async function initPostgres() {
     await client.query(`
       SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1));
       SELECT setval(pg_get_serial_sequence('students', 'id'), COALESCE((SELECT MAX(id) FROM students), 1));
-      SELECT setval(pg_get_serial_sequence('instructors', 'id'), COALESCE((SELECT MAX(id) FROM instructors), 1));
       SELECT setval(pg_get_serial_sequence('courses', 'id'), COALESCE((SELECT MAX(id) FROM courses), 1));
       SELECT setval(pg_get_serial_sequence('sections', 'id'), COALESCE((SELECT MAX(id) FROM sections), 1));
       SELECT setval(pg_get_serial_sequence('semesters', 'id'), COALESCE((SELECT MAX(id) FROM semesters), 1));
