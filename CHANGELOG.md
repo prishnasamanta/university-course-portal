@@ -2,7 +2,14 @@
 
 All notable changes to the backend are documented here.
 
-## [2026-07-29] Paper Review Workflow, Course Creation Fix & Prerequisite Cleanup
+## [2026-07-29] Paper Review Workflow, Course Creation Fix & Student Registration Fixes
+
+### Course Registered Students Listing & Admin Unenrollment
+- Added `/api/workflow/courses/:courseId/students` & `/api/workflow/sections/:sectionId/registered-students` endpoints for Teachers, Academic Staff, and Admin to view all enrolled students with timetable slot & grade info.
+- Added `/api/workflow/enrollments/:enrollmentId` DELETE endpoint allowing Admin/Staff to unenroll/remove registered students from any course, with real-time PostgreSQL synchronization.
+
+### Course Registration & Timetable Selection Fix
+- Enhanced `registerStudent` in `registration.js` to automatically fall back to the first available non-clashing slot if no `chosenSlotId` is explicitly provided, ensuring `enrollments` and `result_workflow` tables are populated immediately upon registration.
 
 ### Paper Review Workflow
 - Added complete multi-stage paper recheck pipeline:

@@ -420,4 +420,60 @@ router.post('/paper-review/:requestId/finalize', authRequired, requireRoles('aca
   res.json({ ok: true, status: finalStatus });
 });
 
+// GET /api/workflow/courses/:courseId/students — Staff/Teacher/Admin gets list of all registered students in a course
+router.get('/courses/:courseId/students', authRequired, requireRoles('instructor', 'academic_staff', 'admin', 'dept_head'), (req, res) => {
+  const students = db.prepare(`
+    SELECT e.id AS enrollment_id, e.student_id, e.section_id, e.enrolled_at,
+           st.roll_number, u.id AS user_id, u.name AS student_name, u.email AS student_email,
+           s.section_code, s.room,
+           ss.day_of_week, ss.start_time, ss.end_time,
+           cr.marks, rw.status AS workflow_status, eg.letter_grade
+    FROM enrollments e
+    JOIN students st ON st.id = e.student_id
+    JOIN users u ON u.id = st.user_id
+    JOIN sections s ON s.id = e.section_id
+    LEFT JOIN section_schedule_slots ss ON ss.id = e.chosen_slot_id
+    LEFT JOIN course_results cr ON cr.enrollment_id = e.id
+    LEFT JOIN result_workflow rw ON rw.enrollment_id = e.id
+    LEFT JOIN enrollment_grades eg ON eg.enrollment_id = e.id
+    WHERE s.course_id = ? AND e.status = 'registered'
+    ORDER BY st.roll_number
+  `).all(req.params.courseId);
+
+  res.json(students);
+});
+
+// GET /api/workflow/sections/:sectionId/registered-students — Staff/Teacher/Admin gets list of registered students in a section
+router.get('/sections/:sectionId/registered-students', authRequired, requireRoles('instructor', 'academic_staff', 'admin', 'dept_head'), (req, res) => {
+  const students = db.prepare(`
+    SELECT e.id AS enrollment_id, e.student_id, e.section_id, e.enrolled_at,
+           st.roll_number, u.id AS user_id, u.name AS student_name, u.email AS student_email,
+           s.section_code, s.room,
+           ss.day_of_week, ss.start_time, ss.end_time,
+           cr.marks, rw.status AS workflow_status, eg.letter_grade
+    FROM enrollments e
+    JOIN students st ON st.id = e.student_id
+    JOIN users u ON u.id = st.user_id
+    JOIN sections s ON s.id = e.section_id
+    LEFT JOIN section_schedule_slots ss ON ss.id = e.chosen_slot_id
+    LEFT JOIN course_results cr ON cr.enrollment_id = e.id
+    LEFT JOIN result_workflow rw ON rw.enrollment_id = e.id
+    LEFT JOIN enrollment_grades eg ON eg.enrollment_id = e.id
+    WHERE e.section_id = ? AND e.status = 'registered'
+    ORDER BY st.roll_number
+  `).all(req.params.sectionId);
+
+  res.json(students);
+});
+
+// DELETE /api/workflow/enrollments/:enrollmentId — Admin/Staff unenrolls/removes a registered student from a course
+router.delete('/enrollments/:enrollmentId', authRequired, requireRoles('admin', 'academic_staff'), (req, res) => {
+  const enrollment = db.prepare('SELECT * FROM enrollments WHERE id = ?').get(req.params.enrollmentId);
+  if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
+
+  db.prepare('DELETE FROM enrollments WHERE id = ?').run(enrollment.id);
+
+  res.json({ ok: true, deleted_enrollment_id: enrollment.id });
+});
+
 export default router;

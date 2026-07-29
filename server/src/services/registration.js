@@ -189,20 +189,31 @@ export function validateRegistration(studentId, sectionId, chosenSlotId) {
 }
 
 export function registerStudent(studentId, sectionId, chosenSlotId) {
-  const validation = validateRegistration(studentId, sectionId, chosenSlotId);
+  let slotIdToUse = chosenSlotId;
+
+  if (!slotIdToUse) {
+    const available = getAvailableSlotsForStudent(studentId, sectionId);
+    const freeSlots = available.filter(s => s.available);
+    if (freeSlots.length > 0) {
+      slotIdToUse = freeSlots[0].id;
+    } else if (available.length > 0) {
+      slotIdToUse = available[0].id;
+    }
+  }
+
+  const validation = validateRegistration(studentId, sectionId, slotIdToUse);
   if (!validation.ok) return validation;
-  if (validation.needs_slot_selection) return validation;
 
   const result = db.prepare(`
     INSERT INTO enrollments (student_id, section_id, chosen_slot_id, status)
     VALUES (?, ?, ?, 'registered')
-  `).run(studentId, sectionId, chosenSlotId);
+  `).run(studentId, sectionId, slotIdToUse || null);
 
   db.prepare(`
     INSERT INTO result_workflow (enrollment_id, status) VALUES (?, 'papers_submitted')
   `).run(result.lastInsertRowid);
 
-  return { ok: true, enrollment_id: result.lastInsertRowid };
+  return { ok: true, enrollment_id: result.lastInsertRowid, chosen_slot_id: slotIdToUse };
 }
 
 export { DAY_NAMES };
