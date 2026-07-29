@@ -174,7 +174,7 @@ export async function initPostgres() {
 
       CREATE TABLE IF NOT EXISTS instructor_teaching_preferences (
         id SERIAL PRIMARY KEY,
-        instructor_id INTEGER REFERENCES instructors(id) ON DELETE CASCADE,
+        instructor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
         semester_id INTEGER REFERENCES semesters(id),
         day_of_week INTEGER NOT NULL,
@@ -369,7 +369,15 @@ export async function initPostgres() {
         ('BTECH-ECO', 'B.Tech Economics', 'eco'),
         ('MSC-STAT', 'M.Sc Statistics', 'stat');
 
-        INSERT INTO semesters (name, year, is_active, registration_open, exams_completed) VALUES ('Fall', 2025, 1, 1, 0);
+        INSERT INTO semesters (semester_number, name, year, is_active, registration_open, exams_completed) VALUES
+        (1, 'Semester 1', 2025, 1, 1, 0),
+        (2, 'Semester 2', 2025, 0, 0, 0),
+        (3, 'Semester 3', 2025, 0, 0, 0),
+        (4, 'Semester 4', 2025, 0, 0, 0),
+        (5, 'Semester 5', 2025, 0, 0, 0),
+        (6, 'Semester 6', 2025, 0, 0, 0),
+        (7, 'Semester 7', 2025, 0, 0, 0),
+        (8, 'Semester 8', 2025, 0, 0, 0);
 
         INSERT INTO courses (code, title, credits, description, department, degree_level, is_published) VALUES
         ('CS101', 'Data Structures', 6, 'Fundamental data structures and algorithms', 'cs', 'btech', 1),
@@ -388,17 +396,87 @@ export async function initPostgres() {
         ('STAT202', 'Statistical Inference', 6, 'Estimation and hypothesis testing', 'stat', 'msc', 1),
         ('STAT203', 'Time Series Analysis', 6, 'Analysis of time-indexed data', 'stat', 'msc', 1);
       `);
+
+      // Seed students
+      await client.query(`
+        INSERT INTO students (user_id, program_id, batch_year, roll_number, profile_completed, previous_degree, previous_grade, current_semester_id) VALUES
+        ((SELECT id FROM users WHERE email='alice@student.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2022, 'CS22001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='ram.das@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23001', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='priya.verma@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23002', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='amit.sharma@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23003', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='nisha.patel@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23004', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='rohan.gupta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-CS'), 2023, 'CS23005', 1, 'Class XII', 'B', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='sneha.roy@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='arjun.nair@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23002', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='deepa.menon@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23003', 1, 'B.Sc', 'B+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='vikram.singh@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23004', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='kavya.iyer@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-CS'), 2023, 'MCS23005', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='ravi.kumar@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23001', 1, 'B.Tech', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='ananya.das@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23002', 1, 'B.Tech', 'A+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='suresh.rao@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23003', 1, 'B.Tech', 'B+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='leela.shah@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23004', 1, 'B.Tech', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='mohan.bose@mtech.uni.edu'), (SELECT id FROM programs WHERE code='MTECH-CS'), 2023, 'MTC23005', 1, 'B.Tech', 'B', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='tanvi.joshi@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23001', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='harsh.gupta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23002', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='simran.kaur@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23003', 1, 'Class XII', 'A+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='dev.mehta@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23004', 1, 'Class XII', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='aisha.khan@btech.uni.edu'), (SELECT id FROM programs WHERE code='BTECH-ECO'), 2023, 'ECO23005', 1, 'Class XII', 'B+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='neha.sharma@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23001', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='arun.pillai@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23002', 1, 'B.Sc', 'A+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='divya.bhat@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23003', 1, 'B.Sc', 'B+', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='kiran.reddy@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23004', 1, 'B.Sc', 'A', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025)),
+        ((SELECT id FROM users WHERE email='sanjay.mehta@msc.uni.edu'), (SELECT id FROM programs WHERE code='MSC-STAT'), 2023, 'STA23005', 1, 'B.Sc', 'B', (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025))
+        ON CONFLICT DO NOTHING;
+      `);
+
+      // Seed sections
+      await client.query(`
+        INSERT INTO sections (course_id, semester_id, section_code, capacity, exam_requested, exam_reg_open, instructor_id) VALUES
+        ((SELECT id FROM courses WHERE code='CS101'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='dr.smith@uni.edu')),
+        ((SELECT id FROM courses WHERE code='CS102'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='dr.smith@uni.edu')),
+        ((SELECT id FROM courses WHERE code='CS103'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='dr.smith@uni.edu')),
+        ((SELECT id FROM courses WHERE code='CS201'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='anita.roy@uni.edu')),
+        ((SELECT id FROM courses WHERE code='CS202'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='anita.roy@uni.edu')),
+        ((SELECT id FROM courses WHERE code='CS203'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='anita.roy@uni.edu')),
+        ((SELECT id FROM courses WHERE code='CS301'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='ramesh.iyer@uni.edu')),
+        ((SELECT id FROM courses WHERE code='CS302'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='ramesh.iyer@uni.edu')),
+        ((SELECT id FROM courses WHERE code='CS303'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='ramesh.iyer@uni.edu')),
+        ((SELECT id FROM courses WHERE code='ECO101'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='sunita.bose@uni.edu')),
+        ((SELECT id FROM courses WHERE code='ECO102'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='sunita.bose@uni.edu')),
+        ((SELECT id FROM courses WHERE code='ECO103'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='sunita.bose@uni.edu')),
+        ((SELECT id FROM courses WHERE code='STAT201'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='girish.nair@uni.edu')),
+        ((SELECT id FROM courses WHERE code='STAT202'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='girish.nair@uni.edu')),
+        ((SELECT id FROM courses WHERE code='STAT203'), (SELECT id FROM semesters WHERE name='Semester 1' AND year=2025), 'A', 60, 0, 0, (SELECT id FROM users WHERE email='girish.nair@uni.edu'))
+        ON CONFLICT DO NOTHING;
+      `);
+
+      // Seed schedule slots
+      await client.query(`
+        INSERT INTO section_schedule_slots (section_id, day_of_week, start_time, end_time) VALUES
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS101' LIMIT 1), 1, '09:00', '11:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS102' LIMIT 1), 2, '09:00', '11:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS103' LIMIT 1), 3, '09:00', '11:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS201' LIMIT 1), 1, '11:00', '13:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS202' LIMIT 1), 2, '11:00', '13:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS203' LIMIT 1), 3, '11:00', '13:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS301' LIMIT 1), 1, '14:00', '16:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS302' LIMIT 1), 2, '14:00', '16:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='CS303' LIMIT 1), 3, '14:00', '16:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='ECO101' LIMIT 1), 4, '09:00', '11:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='ECO102' LIMIT 1), 5, '09:00', '11:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='ECO103' LIMIT 1), 4, '11:00', '13:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='STAT201' LIMIT 1), 4, '14:00', '16:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='STAT202' LIMIT 1), 5, '14:00', '16:00'),
+        ((SELECT s.id FROM sections s JOIN courses c ON c.id=s.course_id WHERE c.code='STAT203' LIMIT 1), 5, '11:00', '13:00')
+        ON CONFLICT DO NOTHING;
+      `);
     }
 
     // Reset PostgreSQL SERIAL Sequences to MAX(id)
-    await client.query(`
-      SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1));
-      SELECT setval(pg_get_serial_sequence('students', 'id'), COALESCE((SELECT MAX(id) FROM students), 1));
-      SELECT setval(pg_get_serial_sequence('courses', 'id'), COALESCE((SELECT MAX(id) FROM courses), 1));
-      SELECT setval(pg_get_serial_sequence('sections', 'id'), COALESCE((SELECT MAX(id) FROM sections), 1));
-      SELECT setval(pg_get_serial_sequence('semesters', 'id'), COALESCE((SELECT MAX(id) FROM semesters), 1));
-      SELECT setval(pg_get_serial_sequence('programs', 'id'), COALESCE((SELECT MAX(id) FROM programs), 1));
-    `).catch(() => {});
+    const seqTables = ['users', 'students', 'courses', 'sections', 'semesters', 'programs', 'section_schedule_slots', 'enrollments', 'exam_registrations', 'assessment_components', 'marks', 'marks_revision_requests', 'grading_policy', 'instructor_teaching_preferences'];
+    for (const t of seqTables) {
+      await client.query(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), COALESCE((SELECT MAX(id) FROM ${t}), 1))`).catch(() => {});
+    }
 
     client.release();
     return true;
